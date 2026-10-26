@@ -1,0 +1,28 @@
+# Blueprint do Render. Se este arquivo não estiver na raiz do repo, crie o serviço
+# manualmente com os mesmos valores (Root Directory = Backend).
+services:
+  - type: web
+    name: cardioia-backend
+    runtime: python
+    rootDir: Backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: AMBIENTE
+        value: producao
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DEVICE_KEY
+        sync: false
+      - key: WATSON_API_KEY
+        sync: false
+      - key: WATSON_SERVICE_URL
+        sync: false
+      - key: WATSON_ASSISTANT_ID
+        sync: false
+      - key: WATSON_VERSION
+        value: "2021-06-14"
