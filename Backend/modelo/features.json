@@ -1,0 +1,12 @@
+[
+  "idade_media",
+  "carga_sistema",
+  "tempo_espera",
+  "fc_media",
+  "spo2_media",
+  "pa_sistolica",
+  "temperatura",
+  "densidade_eventos",
+  "eventos_24h",
+  "disponibilidade_recursos"
+]
