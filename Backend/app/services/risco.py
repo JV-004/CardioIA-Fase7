@@ -66,7 +66,11 @@ def _ascii(texto: str) -> str:
 
 
 def linhas_oled(risco: float, faixa: str, features: dict[str, float], rotulos: list[str]) -> list[str]:
-    """4 linhas para o SSD1306 128x64 (fonte 8x8 = 21 colunas úteis com margem)."""
+    """4 linhas de até 21 caracteres ASCII (largura de um display 128 px com fonte 6x8).
+
+    O firmware MicroPython usa framebuf (fonte 8x8 = 16 colunas) e monta as próprias
+    linhas em IoT/logica.py; estas servem para a UI ou displays com fonte menor.
+    """
     linhas = [
         f"Risco {risco * 100:.0f}% {faixa.upper()}",
         f"FC{features['fc_media']:.0f} T{features['temperatura']:.1f} O2 {features['spo2_media']:.0f}",
