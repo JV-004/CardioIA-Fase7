@@ -61,10 +61,26 @@ curl -X POST http://localhost:8000/api/sensores -H "Content-Type: application/js
 | `WATSON_API_KEY` | vazio | API key do IBM Cloud |
 | `WATSON_SERVICE_URL` | vazio | Ex.: `https://api.us-south.assistant.watson.cloud.ibm.com/instances/...` |
 | `WATSON_ASSISTANT_ID` | vazio | ID do **assistant** (não do skill) |
-| `WATSON_ENVIRONMENT_ID` | vazio | ID do ambiente (draft ou live), exigido pela API v2 nas rotas de sessão e mensagem. Fica em **Environments → ambiente → API details**. Na experiência *classic* (Dialog skill da F5), use o próprio `WATSON_ASSISTANT_ID` |
+| `WATSON_ENVIRONMENT_ID` | vazio | ID do ambiente **Draft** ou **Live** do assistant, exigido pela API v2 nas rotas de sessão e mensagem. É diferente do `WATSON_ASSISTANT_ID`. Para descobrir, rode `scripts/descobrir_environment_id.py` (ver abaixo) |
 | `WATSON_VERSION` | `2021-06-14` | Versão da API v2 |
+| `WATSON_USER_ID` | `cardioia-anonimo` | Enviado em toda mensagem (a API exige `user_id`). Um valor fixo conta como um único usuário ativo no plano da IBM |
 
 Os segredos ficam apenas no `.env`, que está no `.gitignore`, ou no painel do Render. Se faltar qualquer uma das 4 variáveis do Watson (incluindo `WATSON_ENVIRONMENT_ID`), `/api/chat` responde 503 e o resto da API continua funcionando.
+
+### Descobrir o `WATSON_ENVIRONMENT_ID`
+
+Com `WATSON_API_KEY`, `WATSON_SERVICE_URL` e `WATSON_ASSISTANT_ID` preenchidos no `.env`:
+
+```bash
+cd Backend
+python scripts/descobrir_environment_id.py
+```
+
+O script lista nome, tipo (`draft`/`live`) e ID de cada ambiente, e nunca imprime a chave. Copie o ID do ambiente onde o skill está publicado; o Dialog skill da F5 foi validado no **Draft**. Em caso de erro, ele mostra só o código e o diagnóstico: 401/403 = chave ou permissão; 404 = Assistant ID ou Service URL.
+
+### Sessões do chat
+
+O `session_id` devolvido por `/api/chat` deve ser reenviado nas mensagens seguintes. Se ele não estiver no formato UUID, o backend o ignora e cria uma sessão nova. Se a sessão tiver expirado (404 da IBM), ela é recriada automaticamente. Nos dois casos, o novo `session_id` vem na resposta.
 
 ## Regras de negócio
 

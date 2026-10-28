@@ -169,7 +169,7 @@ Lista de `Leitura`, das mais recentes para as mais antigas. `limite` vai de 1 a 
 
 Request: `{"mensagem": "Estou com dor no peito", "session_id": "opcional"}` (mensagem com 1 a 2048 caracteres).
 
-Response 200: `{"resposta": "texto do Watson", "session_id": "..."}`. Guarde o `session_id` e envie-o de volta nas mensagens seguintes. Se a sessão expirar, o backend cria outra sozinho e devolve o novo `session_id`.
+Response 200: `{"resposta": "texto do Watson", "session_id": "..."}`. Guarde o `session_id` e envie-o de volta nas mensagens seguintes. Se a sessão expirar, ou se o `session_id` enviado não estiver no formato UUID, o backend cria outra sozinho e devolve o novo `session_id`.
 
 Response 503 (Watson sem credenciais, com erro de rede ou erro da API):
 
