@@ -49,14 +49,18 @@ function App() {
   }
 
   useEffect(() => {
-    atualizarDashboard()
+    const inicio = setTimeout(() => {
+      atualizarDashboard()
+    }, 0)
 
-    const intervalo = setInterval(
-      atualizarDashboard,
-      5000
-    )
+    const intervalo = setInterval(() => {
+      atualizarDashboard()
+    }, 5000)
 
-    return () => clearInterval(intervalo)
+    return () => {
+      clearTimeout(inicio)
+      clearInterval(intervalo)
+    }
   }, [])
 
   return (
@@ -64,6 +68,7 @@ function App() {
       <header className="topbar">
         <div>
           <span className="marca">CardioIA</span>
+
           <p className="subtitulo">
             Monitoramento inteligente de risco cardíaco
           </p>
@@ -77,6 +82,7 @@ function App() {
           }`}
         >
           <span className="status-dot" />
+
           {saude?.status === 'ok'
             ? 'Sistema online'
             : 'Sistema offline'}
@@ -149,6 +155,7 @@ function App() {
               <strong>
                 {ultimaLeitura?.bpm ?? '--'}
               </strong>
+
               <span>bpm</span>
             </div>
 
@@ -166,6 +173,7 @@ function App() {
               <strong>
                 {ultimaLeitura?.spo2 ?? '--'}
               </strong>
+
               <span>%</span>
             </div>
 
@@ -181,9 +189,9 @@ function App() {
 
             <div className="metrica">
               <strong>
-                {ultimaLeitura?.temperatura ??
-                  '--'}
+                {ultimaLeitura?.temperatura ?? '--'}
               </strong>
+
               <span>°C</span>
             </div>
 
@@ -200,6 +208,7 @@ function App() {
                 <p className="eyebrow">
                   RECOMENDAÇÕES
                 </p>
+
                 <h2>Protocolos acionados</h2>
               </div>
 
@@ -210,8 +219,7 @@ function App() {
               </span>
             </div>
 
-            {ultimaLeitura?.recomendacoes
-              ?.length > 0 ? (
+            {ultimaLeitura?.recomendacoes?.length > 0 ? (
               <ul className="lista-protocolos">
                 {ultimaLeitura.recomendacoes.map(
                   (recomendacao, index) => (
@@ -219,6 +227,7 @@ function App() {
                       <span className="icone-protocolo">
                         !
                       </span>
+
                       {recomendacao}
                     </li>
                   )
@@ -242,14 +251,15 @@ function App() {
             <div className="detalhes">
               <div>
                 <span>Dispositivo</span>
+
                 <strong>
-                  {ultimaLeitura?.device_id ??
-                    '--'}
+                  {ultimaLeitura?.device_id ?? '--'}
                 </strong>
               </div>
 
               <div>
                 <span>Recebido em</span>
+
                 <strong>
                   {formatarData(
                     ultimaLeitura?.recebido_em
@@ -259,6 +269,7 @@ function App() {
 
               <div>
                 <span>Modelo preditivo</span>
+
                 <strong>
                   {saude?.modelo_carregado
                     ? 'Disponível'
@@ -268,6 +279,7 @@ function App() {
 
               <div>
                 <span>Assistente</span>
+
                 <strong>
                   {saude?.watson_configurado
                     ? 'Disponível'
@@ -284,6 +296,7 @@ function App() {
               <p className="eyebrow">
                 HISTÓRICO
               </p>
+
               <h2>Leituras recentes</h2>
             </div>
 
@@ -322,18 +335,23 @@ function App() {
                           leitura.recebido_em
                         )}
                       </td>
+
                       <td>{leitura.bpm}</td>
+
                       <td>
                         {leitura.spo2 ?? '--'}
                       </td>
+
                       <td>
                         {leitura.temperatura} °C
                       </td>
+
                       <td>
                         {formatarRisco(
                           leitura.risco
                         )}
                       </td>
+
                       <td>
                         <span
                           className={`badge-tabela ${classeFaixa(
