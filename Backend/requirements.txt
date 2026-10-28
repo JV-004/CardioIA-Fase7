@@ -6,7 +6,7 @@ pydantic-settings==2.7.1
 python-dotenv==1.0.1
 
 # Watson Assistant (F5)
-ibm-watson==8.1.0
+ibm-watson==11.2.0
 ibm-cloud-sdk-core==3.22.0
 
 # Modelo preditivo (F6) — versões obrigatórias: o .joblib só é garantido nelas
