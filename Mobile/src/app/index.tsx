@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 
@@ -11,6 +13,9 @@ import {
   buscarLeituras,
   buscarSaude,
 } from '../services/api'
+
+const EMAIL_DEMO = 'admin@cardioia.com'
+const SENHA_DEMO = 'CardioIA2026'
 
 type Leitura = {
   id: number
@@ -32,6 +37,11 @@ type Saude = {
 }
 
 export default function HomeScreen() {
+  const [autenticado, setAutenticado] = useState(false)
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
+  const [erroLogin, setErroLogin] = useState('')
+
   const [leituras, setLeituras] = useState<Leitura[]>([])
   const [saude, setSaude] = useState<Saude | null>(null)
   const [erro, setErro] = useState('')
@@ -57,6 +67,8 @@ export default function HomeScreen() {
   }, [])
 
   useEffect(() => {
+    if (!autenticado) return undefined
+
     const inicio = setTimeout(() => {
       atualizar()
     }, 0)
@@ -69,7 +81,30 @@ export default function HomeScreen() {
       clearTimeout(inicio)
       clearInterval(intervalo)
     }
-  }, [atualizar])
+  }, [atualizar, autenticado])
+
+  function fazerLogin() {
+    if (
+      email.trim().toLowerCase() === EMAIL_DEMO &&
+      senha === SENHA_DEMO
+    ) {
+      setAutenticado(true)
+      setErroLogin('')
+      return
+    }
+
+    setErroLogin('E-mail ou senha inválidos.')
+  }
+
+  function sair() {
+    setAutenticado(false)
+    setEmail('')
+    setSenha('')
+    setErroLogin('')
+    setLeituras([])
+    setSaude(null)
+    setErro('')
+  }
 
   function porcentagemRisco() {
     if (ultima?.risco === undefined) return '--'
@@ -82,6 +117,119 @@ export default function HomeScreen() {
     if (ultima?.faixa === 'baixo') return '#15803d'
 
     return '#64748b'
+  }
+
+  if (!autenticado) {
+    return (
+      <View style={styles.loginContainer}>
+        <View style={styles.loginCard}>
+          <View style={styles.loginMarca}>
+            <View style={styles.loginIcone}>
+              <Text style={styles.loginIconeTexto}>
+                ♥
+              </Text>
+            </View>
+
+            <View>
+              <Text style={styles.loginLogo}>
+                CardioIA
+              </Text>
+
+              <Text style={styles.loginSubtitulo}>
+                Inteligência Cardíaca
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.eyebrow}>
+            ACESSO AO SISTEMA
+          </Text>
+
+          <Text style={styles.loginTitulo}>
+            Bem-vindo ao CardioIA
+          </Text>
+
+          <Text style={styles.loginDescricao}>
+            Entre para acessar o monitoramento de risco
+            cardíaco em tempo real.
+          </Text>
+
+          <Text style={styles.inputLabel}>
+            E-mail
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Digite seu e-mail"
+            placeholderTextColor="#98a2b3"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+            accessibilityLabel="E-mail"
+          />
+
+          <Text style={styles.inputLabel}>
+            Senha
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            value={senha}
+            onChangeText={setSenha}
+            placeholder="Digite sua senha"
+            placeholderTextColor="#98a2b3"
+            secureTextEntry
+            autoCapitalize="none"
+            accessibilityLabel="Senha"
+            onSubmitEditing={fazerLogin}
+          />
+
+          {erroLogin ? (
+            <View
+              style={styles.loginErro}
+              accessibilityLiveRegion="polite"
+            >
+              <Text style={styles.loginErroTexto}>
+                {erroLogin}
+              </Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            style={styles.botaoLogin}
+            onPress={fazerLogin}
+            accessibilityRole="button"
+            accessibilityLabel="Entrar no CardioIA"
+          >
+            <Text style={styles.botaoLoginTexto}>
+              Entrar
+            </Text>
+          </Pressable>
+
+          <View style={styles.demo}>
+            <Text style={styles.demoTitulo}>
+              Acesso de demonstração
+            </Text>
+
+            <Text style={styles.demoTexto}>
+              E-mail: {EMAIL_DEMO}
+            </Text>
+
+            <Text style={styles.demoTexto}>
+              Senha: {SENHA_DEMO}
+            </Text>
+          </View>
+
+          <Text style={styles.loginAviso}>
+            Protótipo acadêmico. Este acesso não
+            representa um sistema real de autenticação
+            médica.
+          </Text>
+        </View>
+      </View>
+    )
   }
 
   return (
@@ -99,11 +247,28 @@ export default function HomeScreen() {
       }
     >
       <View style={styles.header}>
-        <Text style={styles.logo}>CardioIA</Text>
+        <View style={styles.headerTopo}>
+          <View>
+            <Text style={styles.logo}>
+              CardioIA
+            </Text>
 
-        <Text style={styles.subtitulo}>
-          Monitoramento inteligente
-        </Text>
+            <Text style={styles.subtitulo}>
+              Monitoramento inteligente
+            </Text>
+          </View>
+
+          <Pressable
+            style={styles.botaoSair}
+            onPress={sair}
+            accessibilityRole="button"
+            accessibilityLabel="Sair do CardioIA"
+          >
+            <Text style={styles.botaoSairTexto}>
+              Sair
+            </Text>
+          </Pressable>
+        </View>
 
         <View style={styles.status}>
           <View
@@ -140,7 +305,10 @@ export default function HomeScreen() {
         </Text>
 
         {erro ? (
-          <View style={styles.erro}>
+          <View
+            style={styles.erro}
+            accessibilityLiveRegion="polite"
+          >
             <Text style={styles.erroTitulo}>
               Backend indisponível
             </Text>
@@ -281,6 +449,139 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  loginContainer: {
+    flex: 1,
+    backgroundColor: '#f4f7fb',
+    justifyContent: 'center',
+    padding: 20,
+  },
+
+  loginCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    padding: 24,
+  },
+
+  loginMarca: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 30,
+  },
+
+  loginIcone: {
+    width: 46,
+    height: 46,
+    backgroundColor: '#b91c1c',
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loginIconeTexto: {
+    color: '#ffffff',
+    fontSize: 22,
+  },
+
+  loginLogo: {
+    color: '#172033',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+
+  loginSubtitulo: {
+    color: '#667085',
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  loginTitulo: {
+    color: '#172033',
+    fontSize: 30,
+    fontWeight: '800',
+    marginTop: 5,
+  },
+
+  loginDescricao: {
+    color: '#667085',
+    lineHeight: 21,
+    marginTop: 8,
+    marginBottom: 24,
+  },
+
+  inputLabel: {
+    color: '#344054',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 7,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: '#d0d5dd',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#172033',
+    marginBottom: 16,
+    backgroundColor: '#ffffff',
+  },
+
+  loginErro: {
+    backgroundColor: '#fff1f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    padding: 11,
+    borderRadius: 9,
+    marginBottom: 14,
+  },
+
+  loginErroTexto: {
+    color: '#991b1b',
+    fontSize: 13,
+  },
+
+  botaoLogin: {
+    backgroundColor: '#b91c1c',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+
+  botaoLoginTexto: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+
+  demo: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 20,
+  },
+
+  demoTitulo: {
+    color: '#344054',
+    fontWeight: '800',
+    fontSize: 12,
+    marginBottom: 5,
+  },
+
+  demoTexto: {
+    color: '#475467',
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  loginAviso: {
+    color: '#98a2b3',
+    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 18,
+  },
+
   container: {
     flex: 1,
     backgroundColor: '#f4f7fb',
@@ -297,6 +598,12 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 
+  headerTopo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+
   logo: {
     color: '#ffffff',
     fontSize: 28,
@@ -306,6 +613,19 @@ const styles = StyleSheet.create({
   subtitulo: {
     color: '#fecaca',
     marginTop: 4,
+  },
+
+  botaoSair: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 9,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+
+  botaoSairTexto: {
+    color: '#ffffff',
+    fontWeight: '700',
   },
 
   status: {

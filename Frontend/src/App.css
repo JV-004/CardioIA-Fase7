@@ -24,9 +24,194 @@ input {
   font: inherit;
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(185, 28, 28, 0.25);
+  outline-offset: 2px;
+}
+
 .app {
   min-height: 100vh;
 }
+
+/* LOGIN */
+
+.pagina-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(220, 38, 38, 0.12),
+      transparent 35%
+    ),
+    #f4f7fb;
+}
+
+.login-card {
+  width: min(100%, 440px);
+
+  padding: 38px;
+
+  border: 1px solid #e8ecf2;
+  border-radius: 22px;
+
+  background: white;
+
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.1);
+}
+
+.login-marca {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 34px;
+}
+
+.login-icone {
+  width: 46px;
+  height: 46px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 14px;
+
+  background: #b91c1c;
+  color: white;
+
+  font-size: 1.35rem;
+}
+
+.login-marca div {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-marca strong {
+  font-size: 1.2rem;
+}
+
+.login-marca span:not(.login-icone) {
+  color: #667085;
+  font-size: 0.78rem;
+}
+
+.login-cabecalho h1 {
+  font-size: 2rem;
+}
+
+.login-cabecalho > p:last-child {
+  margin: 10px 0 26px;
+  color: #667085;
+  line-height: 1.55;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form label {
+  margin: 0 0 7px;
+
+  color: #344054;
+
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.login-form input {
+  width: 100%;
+
+  margin-bottom: 17px;
+  padding: 13px 14px;
+
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+
+  background: #fff;
+  color: #172033;
+}
+
+.login-form input::placeholder {
+  color: #98a2b3;
+}
+
+.login-form input:focus {
+  border-color: #b91c1c;
+}
+
+.login-erro {
+  margin-bottom: 15px;
+  padding: 11px 13px;
+
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+
+  background: #fff1f2;
+  color: #991b1b;
+
+  font-size: 0.84rem;
+}
+
+.botao-login {
+  width: 100%;
+
+  border: 0;
+  border-radius: 10px;
+
+  padding: 13px 18px;
+
+  background: #b91c1c;
+  color: white;
+
+  cursor: pointer;
+
+  font-weight: 800;
+}
+
+.botao-login:hover {
+  background: #991b1b;
+}
+
+.credenciais-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  margin-top: 22px;
+  padding: 14px;
+
+  border-radius: 10px;
+
+  background: #f8fafc;
+  color: #475467;
+
+  font-size: 0.78rem;
+}
+
+.credenciais-demo strong {
+  margin-bottom: 3px;
+  color: #344054;
+}
+
+.login-aviso {
+  margin: 18px 0 0;
+
+  color: #98a2b3;
+
+  text-align: center;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+/* DASHBOARD */
 
 .topbar {
   display: flex;
@@ -62,6 +247,12 @@ input {
   font-size: 0.88rem;
 }
 
+.topbar-acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .status-api {
   display: flex;
   align-items: center;
@@ -88,6 +279,23 @@ input {
 
 .status-api.offline .status-dot {
   background: #fca5a5;
+}
+
+.botao-sair {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 9px;
+
+  padding: 8px 13px;
+
+  background: transparent;
+  color: white;
+
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.botao-sair:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .conteudo {
@@ -473,9 +681,22 @@ td {
 }
 
 @media (max-width: 640px) {
+  .pagina-login {
+    padding: 14px;
+  }
+
+  .login-card {
+    padding: 26px 20px;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-acoes {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .conteudo {

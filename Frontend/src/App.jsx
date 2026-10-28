@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { buscarLeituras, buscarSaude } from './services/api'
 import './App.css'
 
+const EMAIL_DEMO = 'admin@cardioia.com'
+const SENHA_DEMO = 'CardioIA2026'
+
 function formatarData(data) {
   if (!data) return '--'
 
@@ -21,6 +24,11 @@ function classeFaixa(faixa) {
 }
 
 function App() {
+  const [autenticado, setAutenticado] = useState(false)
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
+  const [erroLogin, setErroLogin] = useState('')
+
   const [leituras, setLeituras] = useState([])
   const [saude, setSaude] = useState(null)
   const [carregando, setCarregando] = useState(true)
@@ -49,6 +57,8 @@ function App() {
   }
 
   useEffect(() => {
+    if (!autenticado) return undefined
+
     const inicio = setTimeout(() => {
       atualizarDashboard()
     }, 0)
@@ -61,7 +71,137 @@ function App() {
       clearTimeout(inicio)
       clearInterval(intervalo)
     }
-  }, [])
+  }, [autenticado])
+
+  function fazerLogin(event) {
+    event.preventDefault()
+
+    if (
+      email.trim().toLowerCase() === EMAIL_DEMO &&
+      senha === SENHA_DEMO
+    ) {
+      setAutenticado(true)
+      setErroLogin('')
+      setCarregando(true)
+      return
+    }
+
+    setErroLogin('E-mail ou senha inválidos.')
+  }
+
+  function sair() {
+    setAutenticado(false)
+    setEmail('')
+    setSenha('')
+    setErroLogin('')
+    setLeituras([])
+    setSaude(null)
+    setErro('')
+    setCarregando(true)
+  }
+
+  if (!autenticado) {
+    return (
+      <main className="pagina-login">
+        <section
+          className="login-card"
+          aria-labelledby="titulo-login"
+        >
+          <div className="login-marca">
+            <span className="login-icone">♥</span>
+
+            <div>
+              <strong>CardioIA</strong>
+              <span>Inteligência Cardíaca</span>
+            </div>
+          </div>
+
+          <div className="login-cabecalho">
+            <p className="eyebrow">ACESSO AO SISTEMA</p>
+
+            <h1 id="titulo-login">
+              Bem-vindo ao CardioIA
+            </h1>
+
+            <p>
+              Entre para acessar o monitoramento de risco
+              cardíaco em tempo real.
+            </p>
+          </div>
+
+          <form
+            className="login-form"
+            onSubmit={fazerLogin}
+          >
+            <label htmlFor="email">
+              E-mail
+            </label>
+
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
+              placeholder="Digite seu e-mail"
+              autoComplete="username"
+              required
+            />
+
+            <label htmlFor="senha">
+              Senha
+            </label>
+
+            <input
+              id="senha"
+              type="password"
+              value={senha}
+              onChange={(event) =>
+                setSenha(event.target.value)
+              }
+              placeholder="Digite sua senha"
+              autoComplete="current-password"
+              required
+            />
+
+            {erroLogin && (
+              <div
+                className="login-erro"
+                role="alert"
+              >
+                {erroLogin}
+              </div>
+            )}
+
+            <button
+              className="botao-login"
+              type="submit"
+            >
+              Entrar
+            </button>
+          </form>
+
+          <div className="credenciais-demo">
+            <strong>Acesso de demonstração</strong>
+
+            <span>
+              E-mail: {EMAIL_DEMO}
+            </span>
+
+            <span>
+              Senha: {SENHA_DEMO}
+            </span>
+          </div>
+
+          <p className="login-aviso">
+            Protótipo acadêmico. Este acesso não representa
+            um sistema real de autenticação médica.
+          </p>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <div className="app">
@@ -74,18 +214,32 @@ function App() {
           </p>
         </div>
 
-        <div
-          className={`status-api ${
-            saude?.status === 'ok'
-              ? 'online'
-              : 'offline'
-          }`}
-        >
-          <span className="status-dot" />
+        <div className="topbar-acoes">
+          <div
+            className={`status-api ${
+              saude?.status === 'ok'
+                ? 'online'
+                : 'offline'
+            }`}
+            aria-live="polite"
+          >
+            <span
+              className="status-dot"
+              aria-hidden="true"
+            />
 
-          {saude?.status === 'ok'
-            ? 'Sistema online'
-            : 'Sistema offline'}
+            {saude?.status === 'ok'
+              ? 'Sistema online'
+              : 'Sistema offline'}
+          </div>
+
+          <button
+            className="botao-sair"
+            type="button"
+            onClick={sair}
+          >
+            Sair
+          </button>
         </div>
       </header>
 
@@ -113,7 +267,10 @@ function App() {
         </section>
 
         {erro && (
-          <div className="alerta-erro">
+          <div
+            className="alerta-erro"
+            role="alert"
+          >
             <strong>Backend indisponível.</strong>
             <span>{erro}</span>
           </div>
@@ -235,8 +392,7 @@ function App() {
               </ul>
             ) : (
               <div className="estado-vazio">
-                Nenhum protocolo acionado no
-                momento.
+                Nenhum protocolo acionado no momento.
               </div>
             )}
           </article>
