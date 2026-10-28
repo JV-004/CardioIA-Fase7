@@ -61,9 +61,10 @@ curl -X POST http://localhost:8000/api/sensores -H "Content-Type: application/js
 | `WATSON_API_KEY` | vazio | API key do IBM Cloud |
 | `WATSON_SERVICE_URL` | vazio | Ex.: `https://api.us-south.assistant.watson.cloud.ibm.com/instances/...` |
 | `WATSON_ASSISTANT_ID` | vazio | ID do **assistant** (não do skill) |
+| `WATSON_ENVIRONMENT_ID` | vazio | ID do ambiente (draft ou live), exigido pela API v2 nas rotas de sessão e mensagem. Fica em **Environments → ambiente → API details**. Na experiência *classic* (Dialog skill da F5), use o próprio `WATSON_ASSISTANT_ID` |
 | `WATSON_VERSION` | `2021-06-14` | Versão da API v2 |
 
-Os segredos ficam apenas no `.env`, que está no `.gitignore`, ou no painel do Render. Sem credenciais do Watson, `/api/chat` responde 503 e o resto da API continua funcionando.
+Os segredos ficam apenas no `.env`, que está no `.gitignore`, ou no painel do Render. Se faltar qualquer uma das 4 variáveis do Watson (incluindo `WATSON_ENVIRONMENT_ID`), `/api/chat` responde 503 e o resto da API continua funcionando.
 
 ## Regras de negócio
 
@@ -92,7 +93,7 @@ Para o "novo caso" da F6, o modelo retorna **1,00**, e não o 0,91 ilustrativo d
    - Build: `pip install -r requirements.txt`
    - Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
    - Env: `PYTHON_VERSION=3.11.11`, `AMBIENTE=producao`
-2. Preencha no painel as variáveis marcadas como `sync: false`: `DEVICE_KEY`, `CORS_ORIGINS` e as do Watson.
+2. Preencha no painel as variáveis marcadas como `sync: false`: `DEVICE_KEY`, `CORS_ORIGINS` e as 4 do Watson (`WATSON_API_KEY`, `WATSON_SERVICE_URL`, `WATSON_ASSISTANT_ID`, `WATSON_ENVIRONMENT_ID`). Sem qualquer uma delas, `/api/chat` responde 503.
 3. Confira `https://<servico>.onrender.com/health`.
 
 No plano free, o serviço hiberna depois de cerca de 15 min sem tráfego. A primeira requisição seguinte demora até ~50 s, e o histórico em memória é zerado.

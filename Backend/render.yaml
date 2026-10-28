@@ -24,5 +24,7 @@ services:
         sync: false
       - key: WATSON_ASSISTANT_ID
         sync: false
+      - key: WATSON_ENVIRONMENT_ID
+        sync: false
       - key: WATSON_VERSION
         value: "2021-06-14"

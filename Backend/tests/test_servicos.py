@@ -55,17 +55,24 @@ def test_repositorio_limite():
 
 
 class _ClienteFalso:
-    """Simula o AssistantV2: a primeira mensagem falha com sessão expirada (404)."""
+    """Simula o AssistantV2 (assinaturas do ibm-watson 11.x) e registra cada chamada.
+
+    A primeira mensagem falha com sessão expirada (404) para exercitar a recriação.
+    """
 
     def __init__(self):
         self.sessoes = 0
         self.falhar = True
+        self.chamadas = []
 
-    def create_session(self, assistant_id):
+    def create_session(self, assistant_id, environment_id, *, analytics=None):
+        self.chamadas.append(("create_session", assistant_id, environment_id, None))
         self.sessoes += 1
         return SimpleNamespace(get_result=lambda: {"session_id": f"s{self.sessoes}"})
 
-    def message(self, assistant_id, session_id, input):
+    def message(self, assistant_id, environment_id, session_id, *, input=None, context=None,
+                user_id=None):
+        self.chamadas.append(("message", assistant_id, environment_id, session_id))
         if self.falhar:
             self.falhar = False
             raise ApiException(404, message="Invalid Session")
@@ -74,21 +81,45 @@ class _ClienteFalso:
 
 
 def _watson_com(cliente):
-    servico = ServicoWatson(Settings(_env_file=None, watson_api_key="k",
-                                     watson_service_url="u", watson_assistant_id="a"))
+    servico = ServicoWatson(Settings(_env_file=None, watson_api_key="k", watson_service_url="u",
+                                     watson_assistant_id="a", watson_environment_id="env-1"))
     servico._cliente = cliente
     return servico
 
 
-def test_watson_recria_sessao_expirada():
+def test_watson_recria_sessao_expirada_repassando_environment_id():
     cliente = _ClienteFalso()
     resposta, sessao = _watson_com(cliente).conversar("oi", "sessao-velha")
     assert resposta == "Olá!" and sessao == "s1"
+    assert cliente.chamadas == [
+        ("message", "a", "env-1", "sessao-velha"),  # 404: sessão expirada
+        ("create_session", "a", "env-1", None),  # recriação
+        ("message", "a", "env-1", "s1"),
+    ]
+
+
+def test_watson_cria_sessao_com_environment_id():
+    cliente = _ClienteFalso()
+    cliente.falhar = False
+    resposta, sessao = _watson_com(cliente).conversar("oi")
+    assert (resposta, sessao) == ("Olá!", "s1")
+    assert cliente.chamadas == [
+        ("create_session", "a", "env-1", None),
+        ("message", "a", "env-1", "s1"),
+    ]
+
+
+def test_watson_sem_environment_id_nao_configurado():
+    servico = ServicoWatson(Settings(_env_file=None, watson_api_key="k", watson_service_url="u",
+                                     watson_assistant_id="a", watson_environment_id=""))
+    assert servico.configurado is False
+    with pytest.raises(WatsonIndisponivel, match="WATSON_ENVIRONMENT_ID"):
+        servico.conversar("oi")
 
 
 def test_watson_erro_de_rede_vira_indisponivel():
     class Quebrado(_ClienteFalso):
-        def message(self, **_):
+        def message(self, *_, **__):
             raise ConnectionError("sem rede")
 
     with pytest.raises(WatsonIndisponivel, match="falha de comunicação"):

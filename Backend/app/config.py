@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     watson_api_key: str = ""
     watson_service_url: str = ""
     watson_assistant_id: str = ""
+    watson_environment_id: str = ""
     watson_version: str = "2021-06-14"
 
     # Faixas de risco: baixo < moderado <= ... < alto (modelo avaliado com threshold 0.5)
@@ -65,7 +66,10 @@ class Settings(BaseSettings):
 
     @property
     def watson_configurado(self) -> bool:
-        return all([self.watson_api_key, self.watson_service_url, self.watson_assistant_id])
+        return all([
+            self.watson_api_key, self.watson_service_url,
+            self.watson_assistant_id, self.watson_environment_id,
+        ])
 
 
 @lru_cache

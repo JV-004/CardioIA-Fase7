@@ -174,7 +174,7 @@ Response 200: `{"resposta": "texto do Watson", "session_id": "..."}`. Guarde o `
 Response 503 (Watson sem credenciais, com erro de rede ou erro da API):
 
 ```json
-{"detail":"Assistente conversacional não configurado no servidor (defina WATSON_API_KEY, WATSON_SERVICE_URL e WATSON_ASSISTANT_ID)."}
+{"detail":"Assistente conversacional não configurado no servidor (defina WATSON_API_KEY, WATSON_SERVICE_URL, WATSON_ASSISTANT_ID e WATSON_ENVIRONMENT_ID)."}
 ```
 
 ## Códigos de erro
