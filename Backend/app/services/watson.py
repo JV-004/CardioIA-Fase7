@@ -28,7 +28,8 @@ class ServicoWatson:
         if not self.configurado:
             raise WatsonIndisponivel(
                 "Assistente conversacional não configurado no servidor "
-                "(defina WATSON_API_KEY, WATSON_SERVICE_URL e WATSON_ASSISTANT_ID)."
+                "(defina WATSON_API_KEY, WATSON_SERVICE_URL, WATSON_ASSISTANT_ID "
+                "e WATSON_ENVIRONMENT_ID)."
             )
         with self._lock:
             if self._cliente is None:
@@ -43,13 +44,18 @@ class ServicoWatson:
                 self._cliente = cliente
             return self._cliente
 
+    # A API v2 atual exige environment_id (ex.: "draft" ou "live") nas rotas de sessão e mensagem.
     def _criar_sessao(self, cliente) -> str:
-        r = cliente.create_session(assistant_id=self._settings.watson_assistant_id).get_result()
+        r = cliente.create_session(
+            assistant_id=self._settings.watson_assistant_id,
+            environment_id=self._settings.watson_environment_id,
+        ).get_result()
         return r["session_id"]
 
     def _enviar(self, cliente, session_id: str, mensagem: str) -> str:
         r = cliente.message(
             assistant_id=self._settings.watson_assistant_id,
+            environment_id=self._settings.watson_environment_id,
             session_id=session_id,
             input={"message_type": "text", "text": mensagem},
         ).get_result()
