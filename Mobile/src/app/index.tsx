@@ -57,11 +57,18 @@ export default function HomeScreen() {
   }, [])
 
   useEffect(() => {
-    atualizar()
+    const inicio = setTimeout(() => {
+      atualizar()
+    }, 0)
 
-    const intervalo = setInterval(atualizar, 5000)
+    const intervalo = setInterval(() => {
+      atualizar()
+    }, 5000)
 
-    return () => clearInterval(intervalo)
+    return () => {
+      clearTimeout(inicio)
+      clearInterval(intervalo)
+    }
   }, [atualizar])
 
   function porcentagemRisco() {
@@ -137,7 +144,10 @@ export default function HomeScreen() {
             <Text style={styles.erroTitulo}>
               Backend indisponível
             </Text>
-            <Text style={styles.erroTexto}>{erro}</Text>
+
+            <Text style={styles.erroTexto}>
+              {erro}
+            </Text>
           </View>
         ) : null}
 
@@ -173,7 +183,9 @@ export default function HomeScreen() {
 
             <Text style={styles.valor}>
               {ultima?.bpm ?? '--'}
-              <Text style={styles.unidade}> bpm</Text>
+              <Text style={styles.unidade}>
+                {' '}bpm
+              </Text>
             </Text>
           </View>
 
@@ -184,7 +196,9 @@ export default function HomeScreen() {
 
             <Text style={styles.valor}>
               {ultima?.spo2 ?? '--'}
-              <Text style={styles.unidade}> %</Text>
+              <Text style={styles.unidade}>
+                {' '}%
+              </Text>
             </Text>
           </View>
         </View>
@@ -196,7 +210,9 @@ export default function HomeScreen() {
 
           <Text style={styles.valor}>
             {ultima?.temperatura ?? '--'}
-            <Text style={styles.unidade}> °C</Text>
+            <Text style={styles.unidade}>
+              {' '}°C
+            </Text>
           </Text>
         </View>
 
@@ -212,7 +228,9 @@ export default function HomeScreen() {
                 style={styles.protocolo}
               >
                 <View style={styles.alerta}>
-                  <Text style={styles.alertaTexto}>!</Text>
+                  <Text style={styles.alertaTexto}>
+                    !
+                  </Text>
                 </View>
 
                 <Text style={styles.protocoloTexto}>
