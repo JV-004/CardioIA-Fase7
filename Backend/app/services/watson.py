@@ -1,6 +1,7 @@
 """Integração com o IBM Watson Assistant v2 (assistente conversacional da F5)."""
 import logging
 import threading
+import uuid
 from typing import Optional
 
 from app.config import Settings
@@ -12,6 +13,14 @@ RESPOSTA_VAZIA = "Desculpe, não consegui entender. Pode reformular a pergunta?"
 
 class WatsonIndisponivel(RuntimeError):
     """Mensagem pensada para o usuário final (vai no corpo do HTTP 503)."""
+
+
+def _eh_uuid(valor: str) -> bool:
+    try:
+        uuid.UUID(valor)
+        return True
+    except ValueError:
+        return False
 
 
 class ServicoWatson:
@@ -44,7 +53,8 @@ class ServicoWatson:
                 self._cliente = cliente
             return self._cliente
 
-    # A API v2 atual exige environment_id (ex.: "draft" ou "live") nas rotas de sessão e mensagem.
+    # A API v2 atual exige environment_id (ID do ambiente draft ou live) nas rotas de sessão e
+    # mensagem, e user_id em toda mensagem.
     def _criar_sessao(self, cliente) -> str:
         r = cliente.create_session(
             assistant_id=self._settings.watson_assistant_id,
@@ -58,6 +68,7 @@ class ServicoWatson:
             environment_id=self._settings.watson_environment_id,
             session_id=session_id,
             input={"message_type": "text", "text": mensagem},
+            user_id=self._settings.watson_user_id,
         ).get_result()
         textos = [
             g.get("text", "")
@@ -71,6 +82,8 @@ class ServicoWatson:
         from ibm_cloud_sdk_core import ApiException
 
         cliente = self._obter_cliente()
+        if session_id and not _eh_uuid(session_id):
+            session_id = None  # formato inválido: trata como ausente (a IBM responderia 400)
         try:
             if not session_id:
                 session_id = self._criar_sessao(cliente)

@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     watson_assistant_id: str = ""
     watson_environment_id: str = ""
     watson_version: str = "2021-06-14"
+    watson_user_id: str = "cardioia-anonimo"  # enviado em toda mensagem (exigido pela API)
 
     # Faixas de risco: baixo < moderado <= ... < alto (modelo avaliado com threshold 0.5)
     limiar_moderado: float = 0.30
