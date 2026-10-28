@@ -9,7 +9,7 @@ def _settings(**extra) -> Settings:
     # _env_file=None + valores explícitos: os testes não dependem do .env local
     base = dict(
         _env_file=None, ambiente="desenvolvimento", cors_origins="", device_key="",
-        watson_api_key="", watson_service_url="", watson_assistant_id="",
+        watson_api_key="", watson_service_url="", watson_assistant_id="", watson_environment_id="",
     )
     return Settings(**{**base, **extra})
 

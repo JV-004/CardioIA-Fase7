@@ -130,3 +130,19 @@ def test_cors_vercel_e_localhost(cliente):
     r = cliente.options("/api/risco", headers={
         "Origin": "https://malicioso.com", "Access-Control-Request-Method": "POST"})
     assert "access-control-allow-origin" not in r.headers
+
+
+def test_chat_sem_environment_id_503():
+    # as outras 3 variáveis do Watson preenchidas, só falta WATSON_ENVIRONMENT_ID
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from tests.conftest import _settings
+
+    app = create_app(_settings(watson_api_key="k", watson_service_url="https://exemplo.invalid",
+                               watson_assistant_id="a", watson_environment_id=""))
+    with TestClient(app) as c:
+        assert c.get("/health").json()["watson_configurado"] is False
+        r = c.post("/api/chat", json={"mensagem": "oi"})
+        assert r.status_code == 503
+        assert "WATSON_ENVIRONMENT_ID" in r.json()["detail"]
