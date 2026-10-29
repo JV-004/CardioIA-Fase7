@@ -102,7 +102,8 @@ class ServicoWatson:
                 session_id = self._criar_sessao(cliente)
                 return self._enviar(cliente, session_id, mensagem), session_id
         except ApiException as exc:
-            log.warning("Watson respondeu erro %s: %s", exc.status_code, exc.message)
+            log.warning("Watson respondeu erro %s: %s",
+                        exc.status_code, self._sem_chave(str(exc.message or ""))[:200])
             raise WatsonIndisponivel(
                 f"Assistente conversacional indisponível (Watson retornou erro {exc.status_code})."
             ) from exc

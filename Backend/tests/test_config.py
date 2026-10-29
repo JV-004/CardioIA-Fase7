@@ -93,3 +93,22 @@ def test_log_de_falha_tem_tipo_e_mensagem_sem_a_chave(caplog):
     texto = caplog.text
     assert "ConnectionError" in texto and "falhou ao autenticar" in texto
     assert chave not in texto and "***" in texto
+
+
+def test_log_de_erro_da_ibm_mascara_a_chave(caplog):
+    from ibm_cloud_sdk_core import ApiException
+
+    chave = "chave-falsa-de-teste-xyz"
+
+    class IbmRecusa:
+        def create_session(self, *_, **__):
+            raise ApiException(401, message=f"Provided API key could not be found: {chave}")
+
+    servico = ServicoWatson(_s(watson_api_key=chave, watson_service_url=URL,
+                               watson_assistant_id=UUID_A, watson_environment_id=UUID_E))
+    servico._cliente = IbmRecusa()
+    with caplog.at_level(logging.WARNING), pytest.raises(WatsonIndisponivel, match="erro 401"):
+        servico.conversar("oi")
+    texto = caplog.text
+    assert "Watson respondeu erro 401" in texto and "Provided API key could not be found: ***" in texto
+    assert chave not in texto
