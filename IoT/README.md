@@ -8,6 +8,9 @@ DHT22 + potenciômetros ─► ESP32 (MicroPython) ─► POST /api/sensores ─
                               └► LED verde / LED vermelho / OLED (risco devolvido pelo backend)
 ```
 
+- **Simulação pública no Wokwi:** https://wokwi.com/projects/479256586222505985
+- **Backend usado:** https://cardioia-backend-djsj.onrender.com (Render free: **hiberna após ~15 min; abra `/health` antes da demonstração**).
+
 ## Arquivos
 
 | Arquivo | Conteúdo |
@@ -64,49 +67,57 @@ WiFi ON Fila 0       <- ou "OFFLINE Fila 3"
 3. Crie dois arquivos pelo menu de arquivos (seta ▾ ao lado das abas → **New file…**): `logica.py` e `ssd1306.py`. Cole o conteúdo de cada um.
 4. No topo do `main.py`, ajuste:
    ```python
-   BACKEND_URL = "https://SEU-BACKEND.onrender.com"   # sem barra no final
+   BACKEND_URL = "https://cardioia-backend-djsj.onrender.com"   # sem barra no final
    DEVICE_KEY = ""   # use o mesmo valor de DEVICE_KEY do Render, se tiver configurado
    ```
-5. Clique em **▶ Start**. Antes da demonstração, abra `https://SEU-BACKEND.onrender.com/health` no navegador para acordar o Render free. Enquanto ele não responde, as leituras entram na fila.
+5. Clique em **▶ Start**. Antes da demonstração, abra `https://cardioia-backend-djsj.onrender.com/health` no navegador para acordar o Render free. Enquanto ele não responde, as leituras entram na fila.
 6. Clique em um potenciômetro e arraste o controle deslizante para mudar o BPM ou o SpO2. Clique no DHT22 para mudar a temperatura e a umidade.
 
    Os potenciômetros já começam numa posição de repouso: **BPM ~75** e **SpO2 ~94 %**. No Wokwi, a posição (`value` no `diagram.json`) vai de **0 a 1023**, e o firmware a converte para o ADC de 12 bits (0–4095) antes de mapear para BPM 40–180 e SpO2 70–100. Para simular taquicardia, por exemplo, leve o potenciômetro de BPM a ~592 ou mais (BPM > 120); para SpO2 baixa, leve o de SpO2 a ~613 ou menos (SpO2 < 88).
 
 ### Publicar o link público
 
-Clique em **Save** e depois em **Share**. Copie o link (`https://wokwi.com/projects/<id>`) e confira se ele abre numa janela anônima. Esse é o link que vai no README da raiz e no relatório.
+Projeto publicado: **https://wokwi.com/projects/479256586222505985**.
+
+Para publicar uma cópia sua, clique em **Save** e depois em **Share**, copie o link (`https://wokwi.com/projects/<id>`) e confira se ele abre numa janela anônima.
 
 > O projeto Wokwi é público. Não coloque credenciais reais em `main.py`. A `DEVICE_KEY` é apenas de demonstração.
 
-## Saída esperada no terminal
+## Saída real no terminal
 
-Exemplo **ilustrativo**, montado a partir do formato do `main.py` e de respostas reais do backend local. Não é uma captura do Wokwi: substitua por um print da sua execução no relatório.
+Captura de uma execução no Wokwi (https://wokwi.com/projects/479256586222505985) contra o backend publicado, com os potenciômetros na posição inicial (BPM 75, SpO2 94 %, sem alerta):
 
 ```
-========================================
-  CardioIA - Fase 7 (MicroPython)
-  Sensor -> MicroPython -> Backend -> IA
-========================================
-Backend: https://SEU-BACKEND.onrender.com
-Simular offline a cada 30 s: True
-[WIFI] Conectando em Wokwi-GUEST......
+[WIFI] Conectando em Wokwi-GUEST.........
 [WIFI] Conectado: 10.10.0.2
-
 [WIFI] DESCONECTADO - armazenamento local (edge) ativo
-[0ms] BPM: 110 | Temp: 36.5C | Umidade: 60.0% | SpO2: 85% | Status: OFFLINE fila 1/20
-[5003ms] BPM: 110 | Temp: 36.5C | Umidade: 60.0% | SpO2: 85% | Status: OFFLINE fila 2/20
+[0ms] BPM: 75 | Temp: 36.5C | Umidade: 60.0% | SpO2: 94% | Status: OFFLINE fila 1/20
+[5001ms] BPM: 75 | Temp: 36.5C | Umidade: 60.0% | SpO2: 94% | Status: OFFLINE fila 2/20
 ...
+[25001ms] BPM: 75 | Temp: 36.5C | Umidade: 60.0% | SpO2: 94% | Status: OFFLINE fila 6/20
 [WIFI] CONECTADO - modo online
 ========================================
 [SYNC] Sincronizando 6 registro(s) offline...
-  id=1 bpm=110.0 risco=0.00 faixa=baixo
+  id=49 bpm=75.0 risco=0.00 faixa=baixo
   ...
+  id=54 bpm=75.0 risco=0.00 faixa=baixo
 [SYNC] Concluído. Fila limpa.
 ========================================
-    -> Recomendação: Suporte respiratório imediato
-[30012ms] BPM: 130 | Temp: 38.6C | Umidade: 60.0% | SpO2: 86% | Status: ONLINE | ALERTA: taquicardia, febre, spo2_baixa
-    -> Risco 0.85 (alto)
+[HTTP] Falha em /api/sensores -> OSError(-29312, 'MBEDTLS_ERR_SSL_CONN_EOF')
+[30002ms] BPM: 75 | Temp: 36.5C | Umidade: 60.0% | SpO2: 94% | Status: FALHA HTTP fila 1/20
+[SYNC] Sincronizando 1 registro(s) offline...
+  id=55 bpm=75.0 risco=0.00 faixa=baixo
+[SYNC] Concluído. Fila limpa.
+[42915ms] BPM: 75 | Temp: 36.5C | Umidade: 60.0% | SpO2: 94% | Status: ONLINE
+    -> Risco 0.00 (baixo)
 ```
+
+O que a captura mostra:
+
+- **Edge / fila offline:** nos primeiros 30 s (offline simulado), 6 leituras entram na fila e são sincronizadas em lote ao reconectar (ids 49–54).
+- **Falha de TLS intermitente:** o `MBEDTLS_ERR_SSL_CONN_EOF` é um fechamento inesperado da conexão TLS, observado de forma intermitente no Wokwi. A leitura foi para a fila e entrou no lote seguinte (id 55), sem perda de dado. Com a repetição automática em caso de `OSError`, ele tende a não aparecer, e a fila cobre quando aparece.
+- **Formato da mensagem de falha:** a captura foi feita antes da repetição automática. Na versão atual, a falha aparece como `[HTTP] Falha de rede em /api/sensores (tentativa 1/2) -> OSError(...)`, seguida da segunda tentativa.
+- **IDs a partir de 49:** o backend já tinha recebido leituras antes desta execução. Os ids recomeçam em 1 quando o Render reinicia.
 
 Os valores dependem da posição dos potenciômetros e do DHT22. Na posição inicial do `diagram.json`, o BPM fica em ~75 e o SpO2 em ~94 %; com os potenciômetros no meio do curso (~512), ficam em ~110 e ~85 %.
 
