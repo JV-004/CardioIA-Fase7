@@ -1,7 +1,9 @@
 """Configuração do backend (lida do ambiente e, em desenvolvimento, do arquivo .env)."""
+import re
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DIR_BACKEND = Path(__file__).resolve().parents[1]
@@ -56,6 +58,24 @@ class Settings(BaseSettings):
     limiar_alto: float = 0.50
 
     max_leituras: int = 200
+
+    # Valores colados no painel do Render ou no .env costumam vir com espaço, quebra de linha
+    # ou aspas sobrando; limpamos antes de usar.
+    @field_validator(
+        "watson_api_key", "watson_service_url", "watson_assistant_id", "watson_environment_id",
+        "watson_user_id", "watson_version", "device_key",
+        mode="before",
+    )
+    @classmethod
+    def _sanitizar(cls, valor, info):
+        if not isinstance(valor, str):
+            return valor
+        valor = valor.strip().strip("\"'").strip()
+        if info.field_name in ("watson_service_url", "watson_assistant_id", "watson_environment_id"):
+            valor = re.sub(r"\s+", "", valor)
+        if info.field_name == "watson_service_url":
+            valor = valor.rstrip("/")
+        return valor
 
     @property
     def lista_cors(self) -> list[str]:

@@ -9,6 +9,7 @@ from app.config import Settings
 log = logging.getLogger(__name__)
 
 RESPOSTA_VAZIA = "Desculpe, não consegui entender. Pode reformular a pergunta?"
+TIMEOUT_S = 15  # sem isso, uma IBM lenta prenderia a requisição do usuário indefinidamente
 
 
 class WatsonIndisponivel(RuntimeError):
@@ -28,6 +29,11 @@ class ServicoWatson:
         self._settings = settings
         self._cliente = None
         self._lock = threading.Lock()
+
+    def _sem_chave(self, texto: str) -> str:
+        """Defesa extra: mascara a API key caso ela apareça na mensagem de alguma exceção."""
+        chave = self._settings.watson_api_key
+        return texto.replace(chave, "***") if chave else texto
 
     @property
     def configurado(self) -> bool:
@@ -50,6 +56,7 @@ class ServicoWatson:
                     authenticator=IAMAuthenticator(self._settings.watson_api_key),
                 )
                 cliente.set_service_url(self._settings.watson_service_url)
+                cliente.set_http_config({"timeout": TIMEOUT_S})
                 self._cliente = cliente
             return self._cliente
 
@@ -100,7 +107,8 @@ class ServicoWatson:
                 f"Assistente conversacional indisponível (Watson retornou erro {exc.status_code})."
             ) from exc
         except Exception as exc:  # rede, DNS, timeout, autenticação IAM
-            log.warning("Falha ao falar com o Watson: %s", type(exc).__name__)
+            log.warning("Falha ao falar com o Watson: %s: %s",
+                        type(exc).__name__, self._sem_chave(str(exc))[:200])
             raise WatsonIndisponivel(
                 "Assistente conversacional indisponível no momento (falha de comunicação com o Watson)."
             ) from exc
