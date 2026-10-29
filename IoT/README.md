@@ -23,8 +23,8 @@ DHT22 + potenciômetros ─► ESP32 (MicroPython) ─► POST /api/sensores ─
 | Componente | Pino ESP32 | Observação |
 |---|---|---|
 | DHT22 (temperatura/umidade) | GPIO4 | igual à F3 |
-| Potenciômetro **BPM** | GPIO32 | mapeado de 40 a 180 BPM |
-| Potenciômetro **SpO2** | GPIO33 | **novo**, mapeado de 70 a 100 % |
+| Potenciômetro **BPM** | GPIO32 | mapeado de 40 a 180 BPM; começa em `value` 256 → **~75 BPM** |
+| Potenciômetro **SpO2** | GPIO33 | **novo**, mapeado de 70 a 100 %; começa em `value` 820 → **~94 %** |
 | LED verde + 220 Ω | GPIO2 | aceso quando WiFi e backend estão OK (o último POST deu certo) |
 | LED vermelho + 220 Ω | GPIO15 | aceso com alerta local **ou** faixa `alto` devolvida pelo backend |
 | OLED SSD1306 128×64 (I2C 0x3C) | SDA 21, SCL 22 | 4 linhas, detalhadas abaixo |
@@ -38,6 +38,7 @@ Neste diagrama, todas as ligações usam os nomes corretos (`GND.1`/`GND.2`). Se
 ## Lógica (equivalente à F3)
 
 - Leitura a cada **5 s**.
+- Envio HTTP com timeout de 10 s. Falha de rede (`OSError`) ganha **mais uma tentativa** antes de a leitura ir para a fila. Status diferente de 200 não repete.
 - Alertas locais com comparações estritas, como na F3: BPM > 120 (taquicardia), temperatura > 38 °C (febre), umidade < 40 % ou > 80 %, e o novo SpO2 < 88 % (mesmo limiar do protocolo do backend).
 - **Fila offline FIFO de 20 registros.** Quando está cheia, descarta o registro mais antigo.
 - Ao reconectar, envia a fila inteira em `/api/sensores/lote`. A fila só é limpa se o backend confirmar o recebimento. Depois disso, envia a leitura atual.
@@ -59,7 +60,7 @@ WiFi ON Fila 0       <- ou "OFFLINE Fila 3"
 
 1. Acesse <https://wokwi.com>, faça login e crie um projeto **ESP32 → MicroPython on ESP32**.
 2. No editor, substitua o conteúdo de `main.py` e `diagram.json` pelo destes arquivos.
-   - Se o template trouxer outro valor em `"env"` no `diagram.json`, mantenha o valor do template.
+   - O `diagram.json` fixa o MicroPython em `"env": "micropython-20260406-v1.28.0"`. Se o Wokwi recusar esse valor, use o `"env"` que vier no template.
 3. Crie dois arquivos pelo menu de arquivos (seta ▾ ao lado das abas → **New file…**): `logica.py` e `ssd1306.py`. Cole o conteúdo de cada um.
 4. No topo do `main.py`, ajuste:
    ```python
@@ -68,6 +69,8 @@ WiFi ON Fila 0       <- ou "OFFLINE Fila 3"
    ```
 5. Clique em **▶ Start**. Antes da demonstração, abra `https://SEU-BACKEND.onrender.com/health` no navegador para acordar o Render free. Enquanto ele não responde, as leituras entram na fila.
 6. Clique em um potenciômetro e arraste o controle deslizante para mudar o BPM ou o SpO2. Clique no DHT22 para mudar a temperatura e a umidade.
+
+   Os potenciômetros já começam numa posição de repouso: **BPM ~75** e **SpO2 ~94 %**. No Wokwi, a posição (`value` no `diagram.json`) vai de **0 a 1023**, e o firmware a converte para o ADC de 12 bits (0–4095) antes de mapear para BPM 40–180 e SpO2 70–100. Para simular taquicardia, por exemplo, leve o potenciômetro de BPM a ~592 ou mais (BPM > 120); para SpO2 baixa, leve o de SpO2 a ~613 ou menos (SpO2 < 88).
 
 ### Publicar o link público
 
@@ -105,7 +108,7 @@ Simular offline a cada 30 s: True
     -> Risco 0.85 (alto)
 ```
 
-Os valores dependem da posição dos potenciômetros e do DHT22. Com os potenciômetros no meio do curso, o BPM fica em ~110 e o SpO2 em ~85.
+Os valores dependem da posição dos potenciômetros e do DHT22. Na posição inicial do `diagram.json`, o BPM fica em ~75 e o SpO2 em ~94 %; com os potenciômetros no meio do curso (~512), ficam em ~110 e ~85 %.
 
 ## Testes da lógica (no computador)
 
