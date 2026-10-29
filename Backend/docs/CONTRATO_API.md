@@ -2,13 +2,20 @@
 
 Backend integrador (FastAPI). Consumidores: firmware do ESP32 (`IoT/`), app Web (React + Vite) e app Mobile (Expo).
 
-- **URL base (produção):** `https://SEU-BACKEND.onrender.com`. O Integrante 2 informa a URL real depois do deploy.
+- **URL base (produção):** `https://cardioia-backend-djsj.onrender.com` (Render free: hiberna após ~15 min sem tráfego).
 - **URL base (local):** `http://localhost:8000`
 - **Formato:** JSON (UTF-8) em todas as rotas.
 - **Documentação interativa:** `GET /docs` (Swagger) e `GET /openapi.json`.
 - **CORS:** aceita qualquer `https://*.vercel.app`, as origens de `CORS_ORIGINS` e, fora de produção, `http://localhost:*`.
 
 > Toda resposta clínica traz o campo `aviso`: *"Protótipo acadêmico com dados sintéticos; não substitui avaliação médica."* A interface deve exibi-lo.
+
+## Acesso
+
+- **Rotas públicas por design.** Este é um protótipo acadêmico com dados sintéticos: `/health`, `/api/leituras*`, `/api/risco` e `/api/chat` não exigem autenticação. Qualquer pessoa com a URL consegue ler o histórico.
+- **Exceção: `POST /api/sensores` e `POST /api/sensores/lote`.** Elas exigem o header `X-Device-Key` **somente se** a variável `DEVICE_KEY` estiver configurada no servidor. Sem a variável, também são abertas. Header ausente → 401; header com valor errado → 403.
+- **Não existe login no backend.** Não há rota de autenticação, sessão de usuário nem token. Qualquer tela de login nos apps Web ou Mobile é apenas local, de demonstração, e não protege os dados da API.
+- **`/api/risco` usa os nomes das features do modelo.** Ela não aceita os nomes do sensor: mandar `bpm`, `spo2` ou `umidade` dá **422** (`Extra inputs are not permitted`). Use `fc_media`, `spo2_media` e as demais features listadas na rota. `bpm`, `spo2` e `umidade` são nomes exclusivos de `/api/sensores`; `temperatura` vale nas duas rotas.
 
 ## Resumo
 
