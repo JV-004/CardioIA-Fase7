@@ -4,6 +4,7 @@ Backend integrador (FastAPI). Consumidores: firmware do ESP32 (`IoT/`), app Web 
 
 - **URL base (produção):** `https://cardioia-backend-djsj.onrender.com` (Render free: hiberna após ~15 min sem tráfego).
 - **URL base (local):** `http://localhost:8000`
+- **Simulação do ESP32 (Wokwi):** https://wokwi.com/projects/479256586222505985 (envia para a URL de produção)
 - **Formato:** JSON (UTF-8) em todas as rotas.
 - **Documentação interativa:** `GET /docs` (Swagger) e `GET /openapi.json`.
 - **CORS:** aceita qualquer `https://*.vercel.app`, as origens de `CORS_ORIGINS` e, fora de produção, `http://localhost:*`.
@@ -98,6 +99,27 @@ Body:
 Features aceitas em `contexto`: `idade_media`, `carga_sistema`, `tempo_espera`, `spo2_media`, `pa_sistolica`, `densidade_eventos`, `eventos_24h`, `disponibilidade_recursos`. As chaves são normalizadas, então `"Carga Sistema"` vira `carga_sistema`. Chave desconhecida gera 422.
 
 Ordem de prioridade: sinal do sensor > `contexto` > valor padrão. Valores padrão (faixa normal): idade_media 55, carga_sistema 50, tempo_espera 30, spo2_media 97, pa_sistolica 120, densidade_eventos 3, eventos_24h 2, disponibilidade_recursos 70.
+
+**Campos desconhecidos:** no nível de cima do corpo de `/api/sensores` (e de cada item do lote), um campo desconhecido é **ignorado** em silêncio, e a leitura é aceita. Dentro de `contexto`, e no corpo de `/api/risco`, uma chave desconhecida é **recusada com 422**. Essa diferença é intencional e não deve ser mudada: o firmware e os apps já dependem dela.
+
+#### Limites das features (`contexto` e `/api/risco`)
+
+Os limites são inclusivos: o mínimo e o máximo são aceitos, e qualquer valor fora dessa faixa gera 422. `NaN` e `Infinity` também geram 422.
+
+| Feature | Mínimo | Máximo | Valor padrão | Onde é aceita |
+|---|---|---|---|---|
+| `idade_media` | 0 | 120 | 55 | `contexto` e `/api/risco` |
+| `carga_sistema` | 0 | 100 | 50 | `contexto` e `/api/risco` |
+| `tempo_espera` | 0 | 1440 | 30 | `contexto` e `/api/risco` |
+| `spo2_media` | 50 | 100 | 97 | `contexto` e `/api/risco` |
+| `pa_sistolica` | 40 | 260 | 120 | `contexto` e `/api/risco` |
+| `densidade_eventos` | 0 | 100 | 3 | `contexto` e `/api/risco` |
+| `eventos_24h` | 0 | 1000 | 2 | `contexto` e `/api/risco` |
+| `disponibilidade_recursos` | 0 | 100 | 70 | `contexto` e `/api/risco` |
+| `fc_media` | 30 | 220 | 75 | só `/api/risco` (em `/api/sensores` vem de `bpm`) |
+| `temperatura` | 10 | 45 | 36,5 | só `/api/risco` (em `/api/sensores` vem do campo `temperatura`) |
+
+Os valores padrão de `fc_media` e `temperatura` só são usados em `/api/risco`; em `/api/sensores` esses dois campos são obrigatórios.
 
 Request:
 

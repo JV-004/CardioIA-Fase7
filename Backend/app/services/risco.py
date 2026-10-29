@@ -1,4 +1,5 @@
 """Avaliação de risco: monta as features, chama o modelo F6, classifica e aplica protocolos."""
+import logging
 import unicodedata
 from typing import Optional
 
@@ -8,6 +9,8 @@ from app.config import (
 from app.schemas import ResultadoRisco
 from app.services.protocolos import avaliar_protocolos
 from modelo.predict import carregar_modelo, prever_risco
+
+log = logging.getLogger(__name__)
 
 LARGURA_OLED = 21
 COR_POR_FAIXA = {"baixo": "verde", "moderado": "amarelo", "alto": "vermelho"}
@@ -23,6 +26,7 @@ def carregar() -> bool:
         carregar_modelo()
         return True
     except Exception:
+        log.exception("Falha ao carregar o modelo preditivo da F6")
         return False
 
 
@@ -100,6 +104,7 @@ def avaliar(features: dict[str, float], features_padrao: list[str], settings: Se
     except ValueError:
         raise
     except Exception as exc:  # arquivo ausente, versão incompatível do scikit-learn etc.
+        log.exception("Falha ao executar o modelo preditivo da F6")
         raise ModeloIndisponivel("Modelo preditivo indisponível no servidor.") from exc
 
     faixa = classificar_faixa(risco, settings)

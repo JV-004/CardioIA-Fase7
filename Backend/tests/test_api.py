@@ -1,3 +1,5 @@
+import pytest
+
 from app.config import AVISO, CONTEXTO_PADRAO
 from tests.conftest import NOVO_CASO_F6
 
@@ -146,3 +148,29 @@ def test_chat_sem_environment_id_503():
         r = c.post("/api/chat", json={"mensagem": "oi"})
         assert r.status_code == 503
         assert "WATSON_ENVIRONMENT_ID" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("rota,corpo", [
+    ("/api/sensores", '{"device_id":"x","bpm":NaN,"temperatura":36.5}'),
+    ("/api/sensores", '{"device_id":"x","bpm":72,"temperatura":Infinity}'),
+    ("/api/sensores", '{"device_id":"x","bpm":72,"temperatura":36.5,"spo2":-Infinity}'),
+    ("/api/sensores/lote", '{"leituras":[{"device_id":"x","bpm":72,"temperatura":36.5},'
+                           '{"device_id":"x","bpm":NaN,"temperatura":36.5}]}'),
+    ("/api/risco", '{"fc_media":NaN}'),
+    ("/api/risco", '{"temperatura":Infinity}'),
+])
+def test_nan_e_infinity_viram_422_sem_gravar(cliente, rota, corpo):
+    # JSON não padrão (o parser do Python aceita NaN/Infinity); antes isto virava 500
+    r = cliente.post(rota, content=corpo, headers={"Content-Type": "application/json"})
+    assert r.status_code == 422
+    erros = r.json()["detail"]
+    assert isinstance(erros, list) and erros
+    assert all("input" not in e for e in erros)  # o valor não serializável é removido
+    assert all("loc" in e and "msg" in e for e in erros)
+    assert cliente.get("/api/leituras/ultima").status_code == 404  # nada gravado
+
+
+def test_422_comum_mantem_input(cliente):
+    r = cliente.post("/api/sensores", json={"device_id": "x", "bpm": 250, "temperatura": 36.5})
+    assert r.status_code == 422
+    assert r.json()["detail"][0]["input"] == 250

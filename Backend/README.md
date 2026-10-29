@@ -11,6 +11,9 @@ Web / Mobile ──POST /api/chat───────────────�
 
 O contrato completo das rotas, com exemplos e códigos de erro, está em **[docs/CONTRATO_API.md](docs/CONTRATO_API.md)**. A documentação interativa fica em `/docs`.
 
+- **Produção:** https://cardioia-backend-djsj.onrender.com
+- **Simulação do ESP32 (Wokwi)**, que envia leituras para este backend: https://wokwi.com/projects/479256586222505985
+
 ## Estrutura
 
 ```
@@ -25,6 +28,10 @@ Backend/
       leituras.py      histórico em memória (deque de 200 com Lock)
       watson.py        Watson Assistant v2 (sessões, expiração e erros)
   modelo/              artefatos da F6 copiados sem alteração (predict.py, features.json, .joblib)
+  scripts/
+    descobrir_environment_id.py   lista os ambientes (draft/live) do Watson
+  docs/
+    CONTRATO_API.md    contrato das rotas para o front-end e o firmware
   tests/               pytest
   requirements.txt  .env.example  render.yaml  pytest.ini
 ```

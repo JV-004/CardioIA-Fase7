@@ -20,6 +20,7 @@ DHT22 + potenciômetros ─► ESP32 (MicroPython) ─► POST /api/sensores ─
 | `ssd1306.py` | Driver do OLED (micropython-lib, licença MIT) |
 | `diagram.json` | Circuito do Wokwi |
 | `tests/test_logica.py` | Testes do `logica.py` com pytest |
+| `tests/test_post_json.py` | Testes da repetição do `post_json` do `main.py` (extrai as funções reais e usa um `requests` falso) |
 
 ## Circuito
 
