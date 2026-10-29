@@ -46,6 +46,7 @@ Neste diagrama, todas as ligações usam os nomes corretos (`GND.1`/`GND.2`). Se
 - Alertas locais com comparações estritas, como na F3: BPM > 120 (taquicardia), temperatura > 38 °C (febre), umidade < 40 % ou > 80 %, e o novo SpO2 < 88 % (mesmo limiar do protocolo do backend).
 - **Fila offline FIFO de 20 registros.** Quando está cheia, descarta o registro mais antigo.
 - Ao reconectar, envia a fila inteira em `/api/sensores/lote`. A fila só é limpa se o backend confirmar o recebimento. Depois disso, envia a leitura atual.
+- **Limites e descarte:** antes do envio, cada valor é limitado à faixa aceita pelo backend (BPM 30–220, temperatura 10–45 °C, umidade 0–100 %, SpO2 50–100 %); os alertas locais continuam usando o valor bruto do sensor. Se mesmo assim o backend recusar com 4xx de dado inválido (ex.: 422), a leitura é descartada (`[DESCARTADO]`) ou, no lote, a fila inteira é descartada (`[SYNC] Lote recusado`), em vez de travar a fila para sempre. Falha de rede, 5xx e 4xx temporários (401/403 de `DEVICE_KEY` errada, 408, 429) mantêm a leitura na fila.
 - `SIMULAR_OFFLINE_30S = True`: começa **offline** e alterna online/offline a cada 30 s, como na F3, para a demonstração mostrar a fila enchendo e sendo sincronizada. Com `False`, o dispositivo usa só o estado real do WiFi.
 - Se o DHT22 falhar, a leitura não é enviada, porque o backend exige temperatura.
 

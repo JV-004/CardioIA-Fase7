@@ -12,6 +12,15 @@ UMIDADE_LIMITE_BAIXO = 40.0  # ambiente seco: < 40%
 UMIDADE_LIMITE_ALTO = 80.0  # ambiente úmido: > 80%
 SPO2_LIMITE_BAIXO = 88  # mesmo limiar do protocolo de suporte respiratório do backend
 
+# Limites aceitos pelo backend (Backend/app/schemas.py, LeituraSensor). Fora deles a API
+# responde 422, e a leitura nunca seria aceita; por isso o payload é limitado a essa faixa.
+LIMITES_BACKEND = {
+    "bpm": (30, 220),
+    "temperatura": (10, 45),
+    "umidade": (0, 100),
+    "spo2": (50, 100),
+}
+
 MAX_REGISTROS_OFFLINE = 20
 INTERVALO_WIFI_MS = 30000  # alternância online/offline simulada (igual à F3)
 
@@ -41,19 +50,50 @@ def classificar_alertas(bpm, temperatura, umidade, spo2=None):
     return alertas
 
 
+def limitar(campo, valor):
+    """Traz o valor para dentro de LIMITES_BACKEND[campo]; None continua None."""
+    if valor is None:
+        return None
+    minimo, maximo = LIMITES_BACKEND[campo]
+    return max(minimo, min(maximo, valor))
+
+
 def montar_payload(device_id, timestamp_ms, bpm, temperatura, umidade=None, spo2=None):
-    """Corpo de POST /api/sensores (campos opcionais só entram se houver leitura)."""
+    """Corpo de POST /api/sensores (campos opcionais só entram se houver leitura).
+
+    Os valores são limitados à faixa aceita pelo backend. Os alertas locais
+    (classificar_alertas) usam o valor bruto do sensor, não este.
+    """
     payload = {
         "device_id": device_id,
         "timestamp_ms": timestamp_ms,
-        "bpm": bpm,
-        "temperatura": temperatura,
+        "bpm": limitar("bpm", bpm),
+        "temperatura": limitar("temperatura", temperatura),
     }
     if umidade is not None:
-        payload["umidade"] = umidade
+        payload["umidade"] = limitar("umidade", umidade)
     if spo2 is not None:
-        payload["spo2"] = spo2
+        payload["spo2"] = limitar("spo2", spo2)
     return payload
+
+
+# 4xx que NÃO significam dado inválido: chave do dispositivo errada (401/403) ou
+# limite/espera do servidor (408/429). Corrigida a causa, a mesma leitura é aceita.
+STATUS_4XX_TEMPORARIOS = (401, 403, 408, 429)
+
+
+def destino_resposta(status_http, dados):
+    """O que fazer com uma leitura depois do POST ao backend.
+
+    "aceita"     -> 200 com corpo JSON;
+    "descartar"  -> 4xx de dado inválido (ex.: 422): reenviar nunca vai funcionar;
+    "enfileirar" -> falha de rede (status None), 5xx ou 4xx temporário: tentar de novo depois.
+    """
+    if status_http == 200 and dados is not None:
+        return "aceita"
+    if status_http is not None and 400 <= status_http < 500             and status_http not in STATUS_4XX_TEMPORARIOS:
+        return "descartar"
+    return "enfileirar"
 
 
 class FilaOffline:

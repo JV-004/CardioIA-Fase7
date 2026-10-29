@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import logica  # noqa: E402
@@ -103,3 +105,57 @@ def test_log_formato_f3():
     texto = logica.formatar_log(5000, 130, 36.5, 60.0, 97, "ONLINE", ["taquicardia"])
     assert texto == ("[5000ms] BPM: 130 | Temp: 36.5C | Umidade: 60.0% | SpO2: 97% "
                      "| Status: ONLINE | ALERTA: taquicardia")
+
+
+# ─── Limites do backend e descarte de leituras inválidas ───────────────────
+
+def test_limites_iguais_aos_do_backend():
+    pytest.importorskip("pydantic")  # lê os limites reais de Backend/app/schemas.py
+    import importlib.util
+    raiz = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location("schemas_backend", raiz / "Backend/app/schemas.py")
+    schemas = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(schemas)
+    for campo, (minimo, maximo) in logica.LIMITES_BACKEND.items():
+        meta = schemas.LeituraSensor.model_fields[campo].metadata
+        assert (minimo, maximo) == (
+            next(m.ge for m in meta if hasattr(m, "ge")),
+            next(m.le for m in meta if hasattr(m, "le")),
+        ), campo
+
+
+def test_payload_limita_valores_fora_da_faixa():
+    p = logica.montar_payload("esp", 0, 250, 46.9, 105, 40)
+    assert (p["bpm"], p["temperatura"], p["umidade"], p["spo2"]) == (220, 45, 100, 50)
+    p = logica.montar_payload("esp", 0, 20, 5.0, -3, 49)
+    assert (p["bpm"], p["temperatura"], p["umidade"], p["spo2"]) == (30, 10, 0, 50)
+
+
+def test_payload_dentro_da_faixa_nao_muda():
+    p = logica.montar_payload("esp", 0, 75, 36.5, 60.0, 94)
+    assert (p["bpm"], p["temperatura"], p["umidade"], p["spo2"]) == (75, 36.5, 60.0, 94)
+    assert logica.limitar("spo2", None) is None
+
+
+def test_alertas_locais_usam_valor_bruto():
+    # 46,9 °C vai limitado (45) para o backend, mas o alerta local vê o valor real
+    assert logica.classificar_alertas(72, 46.9, 60) == ["febre"]
+    assert logica.montar_payload("esp", 0, 72, 46.9)["temperatura"] == 45
+
+
+@pytest.mark.parametrize("status,dados,destino", [
+    (200, {"id": 1}, "aceita"),
+    (200, None, "enfileirar"),  # 200 sem JSON válido: não perde a leitura
+    (422, None, "descartar"),
+    (400, None, "descartar"),
+    (404, None, "descartar"),
+    (401, None, "enfileirar"),  # DEVICE_KEY errada: o dado é válido
+    (403, None, "enfileirar"),
+    (408, None, "enfileirar"),
+    (429, None, "enfileirar"),
+    (500, None, "enfileirar"),
+    (503, None, "enfileirar"),
+    (None, None, "enfileirar"),  # falha de rede
+])
+def test_destino_resposta(status, dados, destino):
+    assert logica.destino_resposta(status, dados) == destino
