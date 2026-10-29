@@ -32,6 +32,7 @@ WIFI_SENHA = ""
 
 INTERVALO_LEITURA_MS = 5000
 TIMEOUT_HTTP_S = 10  # o Render free pode levar ~50 s para acordar; a leitura vai para a fila
+TENTATIVAS_HTTP = 2  # 1 tentativa + 1 repetição em caso de OSError
 SIMULAR_OFFLINE_30S = True  # reproduz a alternância online/offline da F3 na demonstração
 BPM_ALEATORIO = False  # só use se o potenciômetro continuar travado no máximo do ADC
 
@@ -109,28 +110,40 @@ def conectar_wifi():
     return wlan
 
 
+def _post(url, corpo, headers):
+    try:
+        return requests.post(url, json=corpo, headers=headers, timeout=TIMEOUT_HTTP_S)
+    except TypeError:  # urequests antigo sem parâmetro timeout
+        return requests.post(url, json=corpo, headers=headers)
+
+
 def post_json(rota, corpo):
-    """POST no backend. Retorna o JSON da resposta ou None em qualquer falha."""
+    """POST no backend. Retorna o JSON da resposta ou None em qualquer falha.
+
+    OSError (rede/SSL instável, comum no Wokwi) ganha mais uma tentativa; status != 200
+    ou resposta inválida não repetem.
+    """
     headers = {"Content-Type": "application/json"}
     if DEVICE_KEY:
         headers["X-Device-Key"] = DEVICE_KEY
-    resposta = None
-    try:
+    for tentativa in range(1, TENTATIVAS_HTTP + 1):
+        resposta = None
         try:
-            resposta = requests.post(BACKEND_URL + rota, json=corpo, headers=headers,
-                                     timeout=TIMEOUT_HTTP_S)
-        except TypeError:  # urequests antigo sem parâmetro timeout
-            resposta = requests.post(BACKEND_URL + rota, json=corpo, headers=headers)
-        if resposta.status_code != 200:
-            print("[HTTP]", rota, "status", resposta.status_code, resposta.text[:120])
+            resposta = _post(BACKEND_URL + rota, corpo, headers)
+            if resposta.status_code != 200:
+                print("[HTTP]", rota, "status", resposta.status_code, resposta.text[:120])
+                return None
+            return resposta.json()
+        except OSError as exc:
+            print("[HTTP] Falha de rede em", rota,
+                  "(tentativa %d/%d) ->" % (tentativa, TENTATIVAS_HTTP), repr(exc))
+        except Exception as exc:
+            print("[HTTP] Falha em", rota, "->", repr(exc))
             return None
-        return resposta.json()
-    except Exception as exc:
-        print("[HTTP] Falha em", rota, "->", repr(exc))
-        return None
-    finally:
-        if resposta is not None:
-            resposta.close()
+        finally:
+            if resposta is not None:
+                resposta.close()
+    return None
 
 
 def sincronizar_fila():
