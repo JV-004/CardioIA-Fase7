@@ -21,7 +21,7 @@ except ImportError:
     import requests
 
 # ─── Configuração (edite antes de rodar) ────────────────────────────────────
-BACKEND_URL = "https://SEU-BACKEND.onrender.com"
+BACKEND_URL = "https://cardioia-backend-djsj.onrender.com"
 # Chave de DEMONSTRAÇÃO: o projeto Wokwi é público, então ela não é segredo.
 # Deixe "" se o backend não tiver DEVICE_KEY configurada.
 DEVICE_KEY = ""
