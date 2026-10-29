@@ -118,8 +118,9 @@ def _post(url, corpo, headers):
 
 
 def post_json(rota, corpo):
-    """POST no backend. Retorna o JSON da resposta ou None em qualquer falha.
+    """POST no backend. Retorna (status_http, dados).
 
+    status_http é None quando não houve resposta (rede/SSL); dados é o JSON só em 200.
     OSError (rede/SSL instável, comum no Wokwi) ganha mais uma tentativa; status != 200
     ou resposta inválida não repetem.
     """
@@ -130,30 +131,41 @@ def post_json(rota, corpo):
         resposta = None
         try:
             resposta = _post(BACKEND_URL + rota, corpo, headers)
-            if resposta.status_code != 200:
-                print("[HTTP]", rota, "status", resposta.status_code, resposta.text[:120])
-                return None
-            return resposta.json()
+            status_http = resposta.status_code
+            if status_http != 200:
+                print("[HTTP]", rota, "status", status_http, resposta.text[:120])
+                return status_http, None
+            return status_http, resposta.json()
         except OSError as exc:
             print("[HTTP] Falha de rede em", rota,
                   "(tentativa %d/%d) ->" % (tentativa, TENTATIVAS_HTTP), repr(exc))
         except Exception as exc:
             print("[HTTP] Falha em", rota, "->", repr(exc))
-            return None
+            return None, None
         finally:
             if resposta is not None:
                 resposta.close()
-    return None
+    return None, None
 
 
 def sincronizar_fila():
-    """Envia a fila offline em /api/sensores/lote. Só limpa se o backend confirmar."""
+    """Envia a fila offline em /api/sensores/lote. Retorna True se a fila ficou vazia.
+
+    Só limpa se o backend confirmar, ou se recusar o lote por dado inválido (4xx): nesse
+    caso reenviar nunca daria certo e a fila travaria para sempre.
+    """
     if not len(fila):
         return True
     print("========================================")
     print("[SYNC] Sincronizando %d registro(s) offline..." % len(fila))
-    resultados = post_json("/api/sensores/lote", {"leituras": fila.itens()})
-    if resultados is None:
+    status_http, resultados = post_json("/api/sensores/lote", {"leituras": fila.itens()})
+    destino = logica.destino_resposta(status_http, resultados)
+    if destino == "descartar":
+        fila.limpar()
+        print("[SYNC] Lote recusado (status %d); fila descartada" % status_http)
+        print("========================================")
+        return True
+    if destino == "enfileirar":
         print("[SYNC] Falhou; fila mantida.")
         return False
     for r in resultados:
@@ -210,15 +222,21 @@ def main():
             status = "SEM DHT22"  # o backend exige temperatura: leitura descartada
         else:
             payload = logica.montar_payload(DEVICE_ID, agora_ms, bpm, temperatura, umidade, spo2)
+            descartada = False
             if online and sincronizar_fila():
-                resultado = post_json("/api/sensores", payload)
-                if resultado is not None:
+                status_http, resultado = post_json("/api/sensores", payload)
+                destino = logica.destino_resposta(status_http, resultado)
+                if destino == "aceita":
                     backend_ok = True
                     status = "ONLINE"
                     ultimo_risco, ultima_faixa = resultado["risco"], resultado["faixa"]
                     for rec in resultado["recomendacoes"]:
                         print("    -> Recomendação:", rec)
-            if not backend_ok:
+                elif destino == "descartar":
+                    descartada = True
+                    status = "DESCARTADO"
+                    print("[DESCARTADO] leitura recusada pelo backend (status %d)" % status_http)
+            if not backend_ok and not descartada:
                 if fila.adicionar(payload):
                     print("[EDGE] Fila cheia - registro mais antigo descartado")
                 status = "%s fila %d/%d" % (status if not online else "FALHA HTTP",
