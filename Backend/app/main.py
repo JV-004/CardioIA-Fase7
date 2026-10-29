@@ -4,6 +4,7 @@ Sensor (MicroPython/ESP32) -> este backend -> modelo preditivo F6 + Watson F5 ->
 
 Rodar local:  uvicorn app.main:app --reload   (a partir da pasta Backend/)
 """
+import json
 import logging
 import secrets
 from contextlib import asynccontextmanager
@@ -11,6 +12,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -27,6 +30,14 @@ log = logging.getLogger("cardioia")
 
 REGEX_VERCEL = r"https://([a-z0-9-]+\.)*vercel\.app"
 REGEX_LOCALHOST = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
+
+
+def _json_valido(valor) -> bool:
+    try:
+        json.dumps(valor, allow_nan=False)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def create_app(settings: Optional[Settings] = None) -> FastAPI:
@@ -57,6 +68,17 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "X-Device-Key"],
     )
+
+    @app.exception_handler(RequestValidationError)
+    async def _erro_validacao(_req: Request, exc: RequestValidationError):
+        # NaN/Infinity (aceitos pelo parser JSON do Python) são recusados pela validação, mas o
+        # valor recebido em "input" não é JSON válido e derrubaria a resposta 422 com um 500.
+        erros = []
+        for erro in jsonable_encoder(exc.errors()):
+            if "input" in erro and not _json_valido(erro["input"]):
+                erro = {k: v for k, v in erro.items() if k != "input"}
+            erros.append(erro)
+        return JSONResponse(status_code=422, content={"detail": erros})
 
     @app.exception_handler(servico_risco.ModeloIndisponivel)
     async def _modelo_indisponivel(_req: Request, exc: Exception):
