@@ -102,17 +102,43 @@ Para o "novo caso" da F6, o modelo retorna **1,00**, e não o 0,91 ilustrativo d
 
 `services/risco.py::enriquecer_com_agentes()` é o ponto preparado para ligar os agentes da F6. Hoje a função devolve o resultado sem alterações. O código dos agentes não está neste repositório e nenhuma dependência de LLM foi adicionada. As instruções estão na docstring da função.
 
-## Deploy no Render (não realizado)
+## Deploy
 
-1. No Render, use **New → Blueprint** e aponte para este repositório. Se o `render.yaml` não for detectado por não estar na raiz, use **New → Web Service** com:
-   - Root Directory: `Backend`
-   - Build: `pip install -r requirements.txt`
-   - Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-   - Env: `PYTHON_VERSION=3.11.11`, `AMBIENTE=producao`
-2. Preencha no painel as variáveis marcadas como `sync: false`: `DEVICE_KEY`, `CORS_ORIGINS` e as 4 do Watson (`WATSON_API_KEY`, `WATSON_SERVICE_URL`, `WATSON_ASSISTANT_ID`, `WATSON_ENVIRONMENT_ID`). Sem qualquer uma delas, `/api/chat` responde 503.
-3. Confira `https://<servico>.onrender.com/health`.
+Publicado no Render: **https://cardioia-backend-djsj.onrender.com** (`/health`, `/docs`).
 
-No plano free, o serviço hiberna depois de cerca de 15 min sem tráfego. A primeira requisição seguinte demora até ~50 s, e o histórico em memória é zerado.
+### Serviço no Render
+
+| Configuração | Valor |
+|---|---|
+| Tipo | Web Service (Python), plano free |
+| Root Directory | `Backend` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Health Check Path | `/health` |
+| Auto-Deploy | **On Commit**: cada push na `main` dispara um novo deploy |
+
+O `render.yaml` desta pasta tem os mesmos valores. Como ele não está na raiz do repositório, o Blueprint do Render pode não detectá-lo; nesse caso, crie o serviço como **New → Web Service** com a tabela acima.
+
+### Variáveis de ambiente (painel do Render → Environment)
+
+| Variável | O que colocar |
+|---|---|
+| `PYTHON_VERSION` | `3.11.11` (o `.joblib` exige `scikit-learn==1.6.1`) |
+| `AMBIENTE` | `producao` |
+| `CORS_ORIGINS` | domínios extras do front, separados por vírgula (`*.vercel.app` já é aceito) |
+| `DEVICE_KEY` | opcional; se preenchida, o ESP32 precisa enviar o mesmo valor em `X-Device-Key` |
+| `WATSON_API_KEY` | API key da instância do Watson Assistant |
+| `WATSON_SERVICE_URL` | URL da instância (`https://api.<região>.assistant.watson.cloud.ibm.com/instances/<id>`) |
+| `WATSON_ASSISTANT_ID` | ID do assistant |
+| `WATSON_ENVIRONMENT_ID` | ID do ambiente **Draft** (descubra com `scripts/descobrir_environment_id.py`) |
+| `WATSON_VERSION` | `2021-06-14` |
+| `WATSON_USER_ID` | opcional; padrão `cardioia-anonimo` |
+
+Os valores ficam só no painel do Render, nunca no repositório. Espaços, quebras de linha e aspas coladas por engano são removidos na leitura. Se faltar qualquer uma das 4 variáveis obrigatórias do Watson, `/api/chat` responde 503 e o resto da API continua funcionando.
+
+### Plano free
+
+O serviço **hiberna após ~15 min** sem tráfego. A primeira requisição seguinte demora até ~50 s, e o histórico em memória é zerado. **Abra `/health` antes da demonstração.**
 
 ## Segurança
 
