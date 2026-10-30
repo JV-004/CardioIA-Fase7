@@ -13,6 +13,7 @@ O contrato completo das rotas, com exemplos e códigos de erro, está em **[docs
 
 - **Produção:** https://cardioia-backend-djsj.onrender.com
 - **Simulação do ESP32 (Wokwi)**, que envia leituras para este backend: https://wokwi.com/projects/479256586222505985
+- **Documento de entrega do Integrante 2** (resumo, endpoints, firmware, Watson, testes e checklist): [docs/ENTREGA_INTEGRANTE2.md](docs/ENTREGA_INTEGRANTE2.md)
 
 ## Estrutura
 
