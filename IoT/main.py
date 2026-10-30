@@ -153,32 +153,52 @@ def post_json(rota, corpo):
     return None, None
 
 
-def sincronizar_fila():
-    """Envia a fila offline em /api/sensores/lote. Retorna True se a fila ficou vazia.
+def enfileirar(payload):
+    if fila.adicionar(payload):
+        print("[EDGE] Fila cheia - registro mais antigo descartado")
 
-    Só limpa se o backend confirmar, ou se recusar o lote por dado inválido (4xx): nesse
-    caso reenviar nunca daria certo e a fila travaria para sempre.
+
+def enviar_ciclo(payload):
+    """No máximo UMA requisição HTTPS por ciclo. Retorna (destino, resultado da leitura atual).
+
+    Duas requisições seguidas (lote e, logo depois, a leitura) faziam a segunda falhar no
+    Wokwi com OSError(16) / MBEDTLS_ERR_SSL_CONN_EOF. Por isso:
+    - fila vazia: POST /api/sensores só com a leitura atual;
+    - fila com itens: a leitura atual vai no FIM do lote (ordem cronológica) e o último
+      resultado do lote é o dela.
+    A fila só é limpa quando o backend confirma (ou recusa o lote com 4xx de dado inválido,
+    que nunca seria aceito). Em falha de rede/5xx, a leitura atual entra na fila.
     """
     if not len(fila):
-        return True
+        status_http, dados = post_json("/api/sensores", payload)
+        destino = logica.destino_resposta(status_http, dados)
+        if destino == "descartar":
+            print("[DESCARTADO] leitura recusada pelo backend (status %d)" % status_http)
+        elif destino == "enfileirar":
+            enfileirar(payload)
+        return destino, dados
+
+    leituras = fila.itens() + [payload]  # a fila só muda depois da resposta
     print("========================================")
-    print("[SYNC] Sincronizando %d registro(s) offline..." % len(fila))
-    status_http, resultados = post_json("/api/sensores/lote", {"leituras": fila.itens()})
+    print("[SYNC] Enviando %d registro(s) offline + leitura atual em lote..." % len(fila))
+    status_http, resultados = post_json("/api/sensores/lote", {"leituras": leituras})
     destino = logica.destino_resposta(status_http, resultados)
+    if destino == "aceita":
+        for r in resultados:
+            print("  id=%s bpm=%s risco=%.2f faixa=%s" % (r["id"], r["bpm"], r["risco"], r["faixa"]))
+        fila.limpar()
+        print("[SYNC] Concluído. Fila limpa.")
+        print("========================================")
+        return destino, resultados[-1]
     if destino == "descartar":
         fila.limpar()
         print("[SYNC] Lote recusado (status %d); fila descartada" % status_http)
         print("========================================")
-        return True
-    if destino == "enfileirar":
-        print("[SYNC] Falhou; fila mantida.")
-        return False
-    for r in resultados:
-        print("  id=%s bpm=%s risco=%.2f faixa=%s" % (r["id"], r["bpm"], r["risco"], r["faixa"]))
-    fila.limpar()
-    print("[SYNC] Concluído. Fila limpa.")
+        return destino, None
+    print("[SYNC] Falhou; fila mantida.")
     print("========================================")
-    return True
+    enfileirar(payload)
+    return destino, None
 
 
 def atualizar_oled(linhas):
@@ -227,24 +247,21 @@ def main():
             status = "SEM DHT22"  # o backend exige temperatura: leitura descartada
         else:
             payload = logica.montar_payload(DEVICE_ID, agora_ms, bpm, temperatura, umidade, spo2)
-            descartada = False
-            if online and sincronizar_fila():
-                status_http, resultado = post_json("/api/sensores", payload)
-                destino = logica.destino_resposta(status_http, resultado)
-                if destino == "aceita":
-                    backend_ok = True
-                    status = "ONLINE"
-                    ultimo_risco, ultima_faixa = resultado["risco"], resultado["faixa"]
-                    for rec in resultado["recomendacoes"]:
-                        print("    -> Recomendação:", rec)
-                elif destino == "descartar":
-                    descartada = True
-                    status = "DESCARTADO"
-                    print("[DESCARTADO] leitura recusada pelo backend (status %d)" % status_http)
-            if not backend_ok and not descartada:
-                if fila.adicionar(payload):
-                    print("[EDGE] Fila cheia - registro mais antigo descartado")
-                status = "%s fila %d/%d" % (status if not online else "FALHA HTTP",
+            if online:
+                destino, resultado = enviar_ciclo(payload)  # uma requisição por ciclo
+            else:
+                destino, resultado = "offline", None
+                enfileirar(payload)
+            if destino == "aceita":
+                backend_ok = True
+                status = "ONLINE"
+                ultimo_risco, ultima_faixa = resultado["risco"], resultado["faixa"]
+                for rec in resultado["recomendacoes"]:
+                    print("    -> Recomendação:", rec)
+            elif destino == "descartar":
+                status = "DESCARTADO"
+            else:
+                status = "%s fila %d/%d" % ("FALHA HTTP" if online else "OFFLINE",
                                             len(fila), logica.MAX_REGISTROS_OFFLINE)
 
         print(logica.formatar_log(agora_ms, bpm, temperatura, umidade, spo2, status, alertas))
