@@ -42,10 +42,10 @@ Neste diagrama, todas as ligações usam os nomes corretos (`GND.1`/`GND.2`). Se
 ## Lógica (equivalente à F3)
 
 - Leitura a cada **5 s**.
-- Envio HTTP com timeout de 10 s. Falha de rede (`OSError`) ganha **mais uma tentativa** antes de a leitura ir para a fila. Status diferente de 200 não repete.
+- Envio HTTP com timeout de 10 s. Antes de cada tentativa roda `gc.collect()` (o TLS precisa de RAM livre). Falha de rede (`OSError`) ganha **mais uma tentativa**, 1 s depois, antes de a leitura ir para a fila. Status diferente de 200 não repete.
 - Alertas locais com comparações estritas, como na F3: BPM > 120 (taquicardia), temperatura > 38 °C (febre), umidade < 40 % ou > 80 %, e o novo SpO2 < 88 % (mesmo limiar do protocolo do backend).
 - **Fila offline FIFO de 20 registros.** Quando está cheia, descarta o registro mais antigo.
-- Ao reconectar, envia a fila inteira em `/api/sensores/lote`. A fila só é limpa se o backend confirmar o recebimento. Depois disso, envia a leitura atual.
+- **Uma requisição HTTPS por ciclo.** Com a fila vazia, a leitura vai em `POST /api/sensores`. Com itens na fila (por exemplo, ao reconectar), a leitura atual vai **no fim do lote** em `POST /api/sensores/lote`, e o último resultado do lote é o dela. Duas requisições seguidas no mesmo ciclo faziam a segunda falhar no Wokwi (`OSError(16)` / `MBEDTLS_ERR_SSL_CONN_EOF`). A fila só é limpa se o backend confirmar; se o lote falhar, a leitura atual entra no fim da fila.
 - **Limites e descarte:** antes do envio, cada valor é limitado à faixa aceita pelo backend (BPM 30–220, temperatura 10–45 °C, umidade 0–100 %, SpO2 50–100 %); os alertas locais continuam usando o valor bruto do sensor. Se mesmo assim o backend recusar com 4xx de dado inválido (ex.: 422), a leitura é descartada (`[DESCARTADO]`) ou, no lote, a fila inteira é descartada (`[SYNC] Lote recusado`), em vez de travar a fila para sempre. Falha de rede, 5xx e 4xx temporários (401/403 de `DEVICE_KEY` errada, 408, 429) mantêm a leitura na fila.
 - `SIMULAR_OFFLINE_30S = True`: começa **offline** e alterna online/offline a cada 30 s, como na F3, para a demonstração mostrar a fila enchendo e sendo sincronizada. Com `False`, o dispositivo usa só o estado real do WiFi.
 - Se o DHT22 falhar, a leitura não é enviada, porque o backend exige temperatura.
@@ -118,6 +118,7 @@ O que a captura mostra:
 
 - **Edge / fila offline:** nos primeiros 30 s (offline simulado), 6 leituras entram na fila e são sincronizadas em lote ao reconectar (ids 49–54).
 - **Falha de TLS intermitente:** o `MBEDTLS_ERR_SSL_CONN_EOF` é um fechamento inesperado da conexão TLS, observado de forma intermitente no Wokwi. A leitura foi para a fila e entrou no lote seguinte (id 55), sem perda de dado. Com a repetição automática em caso de `OSError`, ele tende a não aparecer, e a fila cobre quando aparece.
+- **Fluxo de envio:** a captura também é anterior à regra de uma requisição por ciclo. Hoje, ao reconectar, sai uma única linha `[SYNC] Enviando 6 registro(s) offline + leitura atual em lote...`, e o lote traz 7 resultados (a leitura atual é o último), sem um POST separado em seguida.
 - **Formato da mensagem de falha:** a captura foi feita antes da repetição automática. Na versão atual, a falha aparece como `[HTTP] Falha de rede em /api/sensores (tentativa 1/2) -> OSError(...)`, seguida da segunda tentativa.
 - **IDs a partir de 49:** o backend já tinha recebido leituras antes desta execução. Os ids recomeçam em 1 quando o Render reinicia.
 
