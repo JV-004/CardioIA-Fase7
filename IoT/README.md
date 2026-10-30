@@ -42,7 +42,7 @@ Neste diagrama, todas as ligações usam os nomes corretos (`GND.1`/`GND.2`). Se
 ## Lógica (equivalente à F3)
 
 - Leitura a cada **5 s**.
-- Envio HTTP com timeout de 10 s. Antes de cada tentativa roda `gc.collect()` (o TLS precisa de RAM livre). Falha de rede (`OSError`) ganha **mais uma tentativa**, 1 s depois, antes de a leitura ir para a fila. Status diferente de 200 não repete.
+- Envio HTTP com timeout de 10 s. Antes de cada tentativa roda `gc.collect()` (o TLS precisa de RAM livre). Falha na conexão/envio (`OSError`, ou `ValueError` "BadStatusLine" do urequests quando o TLS cai no meio da resposta) ganha **mais uma tentativa**, 1 s depois, antes de a leitura ir para a fila. Status diferente de 200 e erro ao ler o corpo depois de um 200 não repetem (o backend já gravou).
 - Alertas locais com comparações estritas, como na F3: BPM > 120 (taquicardia), temperatura > 38 °C (febre), umidade < 40 % ou > 80 %, e o novo SpO2 < 88 % (mesmo limiar do protocolo do backend).
 - **Fila offline FIFO de 20 registros.** Quando está cheia, descarta o registro mais antigo.
 - **Uma requisição HTTPS por ciclo.** Com a fila vazia, a leitura vai em `POST /api/sensores`. Com itens na fila (por exemplo, ao reconectar), a leitura atual vai **no fim do lote** em `POST /api/sensores/lote`, e o último resultado do lote é o dela. Duas requisições seguidas no mesmo ciclo faziam a segunda falhar no Wokwi (`OSError(16)` / `MBEDTLS_ERR_SSL_CONN_EOF`). A fila só é limpa se o backend confirmar; se o lote falhar, a leitura atual entra no fim da fila.

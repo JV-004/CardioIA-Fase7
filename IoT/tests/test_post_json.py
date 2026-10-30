@@ -154,6 +154,49 @@ def test_oserror_duas_vezes_sem_status(capsys):
     assert "tentativa 1/2" in saida and "tentativa 2/2" in saida
 
 
+def test_valueerror_badstatusline_na_1a_e_200_na_2a(capsys):
+    # (a) urequests lança ValueError('HTTP error: BadStatusLine') quando o TLS cai
+    eventos = []
+    resp = _Resposta(corpo={"id": 7})
+    req = _RequestsFalso(ValueError("HTTP error: BadStatusLine"), resp)
+    escopo, _ = _carregar(req, eventos=eventos)
+    assert escopo["post_json"]("/api/sensores/lote", {}) == (200, {"id": 7})
+    assert len(req.chamadas) == 2 and resp.fechada
+    assert eventos == ["gc", "post", ("sleep", 1000), "gc", "post"]
+    assert "BadStatusLine" in capsys.readouterr().out
+
+
+def test_valueerror_nas_duas_tentativas():
+    # (b)
+    req = _RequestsFalso(ValueError("HTTP error: BadStatusLine"),
+                         ValueError("HTTP error: BadStatusLine"))
+    escopo, _ = _carregar(req)
+    assert escopo["post_json"]("/api/sensores/lote", {}) == (None, None)
+    assert len(req.chamadas) == 2
+
+
+def test_200_com_json_invalido_nao_repete(capsys):
+    # (c) o backend já gravou: repetir duplicaria o registro
+    resp = _Resposta(json_invalido=True)
+    req = _RequestsFalso(resp, _Resposta())
+    escopo, _ = _carregar(req)
+    assert escopo["post_json"]("/api/sensores", {}) == (None, None)
+    assert len(req.chamadas) == 1 and resp.fechada
+    assert "Resposta inválida" in capsys.readouterr().out
+
+
+def test_oserror_ao_ler_o_corpo_depois_do_200_nao_repete():
+    class CorpoCortado(_Resposta):
+        def json(self):
+            raise OSError(-29312)  # TLS caiu lendo o corpo, depois do 200
+
+    resp = CorpoCortado()
+    req = _RequestsFalso(resp, _Resposta())
+    escopo, _ = _carregar(req)
+    assert escopo["post_json"]("/api/sensores", {}) == (None, None)
+    assert len(req.chamadas) == 1 and resp.fechada
+
+
 @pytest.mark.parametrize("status", [422, 400, 503, 500])
 def test_status_diferente_de_200_devolve_o_status_sem_repetir(status):
     resp = _Resposta(status=status)
