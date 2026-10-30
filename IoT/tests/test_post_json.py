@@ -1,7 +1,7 @@
-"""Testa post_json e sincronizar_fila de main.py em CPython.
+"""Testa post_json e enviar_ciclo de main.py em CPython.
 
 main.py importa machine/network/dht e chama main() ao ser carregado, então não dá para
-importá-lo aqui. Extraímos só as funções _post, post_json e sincronizar_fila (código real,
+importá-lo aqui. Extraímos só as funções _post, post_json, enfileirar e enviar_ciclo (código real,
 sem cópia) e as executamos com um `requests` falso e a FilaOffline de verdade.
 """
 import ast
@@ -16,7 +16,7 @@ sys.path.insert(0, str(DIR_IOT))
 import logica  # noqa: E402
 
 CAMINHO_MAIN = DIR_IOT / "main.py"
-FUNCOES = {"_post", "post_json", "sincronizar_fila"}
+FUNCOES = {"_post", "post_json", "enfileirar", "enviar_ciclo"}
 
 
 class _Resposta:
@@ -51,7 +51,20 @@ class _RequestsFalso:
         return item
 
 
-def _carregar(requests_falso, device_key="", fila=None):
+class _Relogio:
+    """Substitui gc e time do MicroPython; registra a ordem das chamadas."""
+
+    def __init__(self, eventos):
+        self.eventos = eventos
+
+    def collect(self):
+        self.eventos.append("gc")
+
+    def sleep_ms(self, ms):
+        self.eventos.append(("sleep", ms))
+
+
+def _carregar(requests_falso, device_key="", fila=None, eventos=None):
     arvore = ast.parse(CAMINHO_MAIN.read_text(encoding="utf-8"))
     nos = [n for n in arvore.body if isinstance(n, ast.FunctionDef) and n.name in FUNCOES]
     assert {n.name for n in nos} == FUNCOES
@@ -59,10 +72,18 @@ def _carregar(requests_falso, device_key="", fila=None):
         n.targets[0].id: ast.literal_eval(n.value)
         for n in arvore.body
         if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)
-        and n.targets[0].id in {"TIMEOUT_HTTP_S", "TENTATIVAS_HTTP"}
+        and n.targets[0].id in {"TIMEOUT_HTTP_S", "TENTATIVAS_HTTP", "PAUSA_RETRY_MS"}
     }
+    relogio = _Relogio(eventos if eventos is not None else [])
+    if eventos is not None:  # registra cada POST na mesma linha do tempo
+        original = requests_falso.post
+
+        def post(*args, **kwargs):
+            eventos.append("post")
+            return original(*args, **kwargs)
+        requests_falso.post = post
     escopo = {
-        **constantes, "requests": requests_falso, "logica": logica,
+        **constantes, "requests": requests_falso, "logica": logica, "gc": relogio, "time": relogio,
         "fila": fila if fila is not None else logica.FilaOffline(),
         "BACKEND_URL": "https://backend.teste", "DEVICE_KEY": device_key,
     }
@@ -81,7 +102,28 @@ def _fila_com(n):
 
 def test_constantes():
     _, constantes = _carregar(_RequestsFalso())
-    assert constantes == {"TIMEOUT_HTTP_S": 10, "TENTATIVAS_HTTP": 2}
+    assert constantes == {"TIMEOUT_HTTP_S": 10, "TENTATIVAS_HTTP": 2, "PAUSA_RETRY_MS": 1000}
+
+
+def test_gc_antes_de_cada_tentativa_e_pausa_so_entre_tentativas():
+    eventos = []
+    escopo, _ = _carregar(_RequestsFalso(OSError(16), _Resposta()), eventos=eventos)
+    assert escopo["post_json"]("/api/sensores", {}) == (200, {"ok": True})
+    assert eventos == ["gc", "post", ("sleep", 1000), "gc", "post"]
+
+
+def test_sem_pausa_depois_da_ultima_tentativa():
+    eventos = []
+    escopo, _ = _carregar(_RequestsFalso(OSError(16), OSError(16)), eventos=eventos)
+    assert escopo["post_json"]("/api/sensores", {}) == (None, None)
+    assert eventos == ["gc", "post", ("sleep", 1000), "gc", "post"]  # nada depois do último
+
+
+def test_sucesso_sem_pausa():
+    eventos = []
+    escopo, _ = _carregar(_RequestsFalso(_Resposta()), eventos=eventos)
+    escopo["post_json"]("/api/sensores", {})
+    assert eventos == ["gc", "post"]
 
 
 def test_sucesso_na_primeira_tentativa():
@@ -149,56 +191,119 @@ def test_envia_device_key_quando_configurada():
     assert req.chamadas[0]["headers"]["X-Device-Key"] == "demo-123"
 
 
-# ─── sincronizar_fila: 4xx descarta, rede/5xx mantém ────────────────────────
+# ─── enviar_ciclo: uma requisição por ciclo ─────────────────────────────────
 
-def test_lote_aceito_limpa_a_fila():
+ATUAL = logica.montar_payload("esp", 99, 80, 36.6, 55.0, 95)
+
+
+def _resultado(i, faixa="baixo"):
+    return {"id": i, "bpm": 72.0, "risco": 0.1, "faixa": faixa, "recomendacoes": []}
+
+
+def test_fila_vazia_envia_so_a_leitura_atual():
+    req = _RequestsFalso(_Resposta(corpo=_resultado(1)))
+    fila = logica.FilaOffline()
+    escopo, _ = _carregar(req, fila=fila)
+    assert escopo["enviar_ciclo"](ATUAL) == ("aceita", _resultado(1))
+    assert len(req.chamadas) == 1
+    assert req.chamadas[0]["url"].endswith("/api/sensores")
+    assert req.chamadas[0]["json"] == ATUAL
+    assert len(fila) == 0
+
+
+def test_fila_com_itens_faz_uma_unica_requisicao_de_lote_com_a_leitura_atual_no_fim():
     fila = _fila_com(3)
-    resultados = [{"id": i, "bpm": 72.0, "risco": 0.0, "faixa": "baixo"} for i in (1, 2, 3)]
+    antigos = fila.itens()
+    resultados = [_resultado(1), _resultado(2), _resultado(3), _resultado(4, "alto")]
     req = _RequestsFalso(_Resposta(corpo=resultados))
     escopo, _ = _carregar(req, fila=fila)
-    assert escopo["sincronizar_fila"]() is True
-    assert len(fila) == 0
+    destino, atual = escopo["enviar_ciclo"](ATUAL)
+    assert len(req.chamadas) == 1  # nenhum POST /api/sensores depois do lote
     assert req.chamadas[0]["url"].endswith("/api/sensores/lote")
-    assert len(req.chamadas[0]["json"]["leituras"]) == 3
+    assert req.chamadas[0]["json"]["leituras"] == antigos + [ATUAL]  # ordem cronológica
+    assert (destino, atual) == ("aceita", _resultado(4, "alto"))  # último = leitura atual
+    assert len(fila) == 0
 
 
-def test_lote_422_descarta_a_fila(capsys):
+def test_fila_nao_muda_antes_da_resposta():
+    fila = _fila_com(2)
+    vistos = []
+
+    class Espiao(_RequestsFalso):
+        def post(self, url, json=None, headers=None, timeout=None):
+            vistos.append(len(fila))  # tamanho da fila no momento do envio
+            return super().post(url, json=json, headers=headers, timeout=timeout)
+
+    escopo, _ = _carregar(Espiao(_Resposta(corpo=[_resultado(i) for i in range(3)])), fila=fila)
+    escopo["enviar_ciclo"](ATUAL)
+    assert vistos == [2]
+
+
+@pytest.mark.parametrize("roteiro", [
+    (OSError(16), OSError(16)),  # o OSError(16) visto no Wokwi, nas duas tentativas
+    (OSError(-29312), OSError(-29312)),  # MBEDTLS_ERR_SSL_CONN_EOF
+    (_Resposta(status=503),),
+    (_Resposta(status=401),),  # DEVICE_KEY errada: o dado é válido
+])
+def test_lote_que_falha_mantem_a_fila_e_enfileira_a_leitura_atual_no_fim(roteiro, capsys):
+    fila = _fila_com(3)
+    antigos = fila.itens()
+    escopo, _ = _carregar(_RequestsFalso(*roteiro), fila=fila)
+    assert escopo["enviar_ciclo"](ATUAL) == ("enfileirar", None)
+    assert fila.itens() == antigos + [ATUAL]  # FIFO preservada
+    assert "fila mantida" in capsys.readouterr().out
+
+
+def test_falha_com_fila_cheia_descarta_o_mais_antigo(capsys):
+    fila = _fila_com(20)
+    antigos = fila.itens()
+    escopo, _ = _carregar(_RequestsFalso(_Resposta(status=503)), fila=fila)
+    escopo["enviar_ciclo"](ATUAL)
+    assert len(fila) == 20
+    assert fila.itens() == antigos[1:] + [ATUAL]
+    assert "registro mais antigo descartado" in capsys.readouterr().out
+
+
+def test_fila_vazia_e_falha_de_rede_enfileira_a_leitura_atual():
+    fila = logica.FilaOffline()
+    escopo, _ = _carregar(_RequestsFalso(OSError(16), OSError(16)), fila=fila)
+    assert escopo["enviar_ciclo"](ATUAL) == ("enfileirar", None)
+    assert fila.itens() == [ATUAL]
+
+
+def test_fila_vazia_e_422_descarta_sem_enfileirar(capsys):
+    fila = logica.FilaOffline()
+    escopo, _ = _carregar(_RequestsFalso(_Resposta(status=422)), fila=fila)
+    assert escopo["enviar_ciclo"](ATUAL) == ("descartar", None)
+    assert len(fila) == 0
+    assert "[DESCARTADO] leitura recusada pelo backend (status 422)" in capsys.readouterr().out
+
+
+def test_lote_422_descarta_a_fila_e_a_leitura_atual(capsys):
     fila = _fila_com(4)
-    req = _RequestsFalso(_Resposta(status=422))
-    escopo, _ = _carregar(req, fila=fila)
-    assert escopo["sincronizar_fila"]() is True  # fila vazia: pode seguir com a leitura atual
+    escopo, _ = _carregar(_RequestsFalso(_Resposta(status=422)), fila=fila)
+    assert escopo["enviar_ciclo"](ATUAL) == ("descartar", None)
     assert len(fila) == 0
     assert "[SYNC] Lote recusado (status 422); fila descartada" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("roteiro", [
-    (OSError(-29312), OSError(-29312)),  # rede/TLS nas duas tentativas
-    (_Resposta(status=503),),  # servidor indisponível
-    (_Resposta(status=500),),
-    (_Resposta(status=401),),  # DEVICE_KEY errada: o dado é válido
-    (_Resposta(status=429),),  # limite de requisições
-])
-def test_lote_com_falha_temporaria_mantem_a_fila(roteiro, capsys):
-    fila = _fila_com(5)
-    escopo, _ = _carregar(_RequestsFalso(*roteiro), fila=fila)
-    assert escopo["sincronizar_fila"]() is False
-    assert len(fila) == 5
-    assert "fila mantida" in capsys.readouterr().out
+def test_ciclos_seguidos_falha_e_depois_sucesso_mantem_a_ordem():
+    fila = _fila_com(2)
+    antigos = fila.itens()
+    segunda = logica.montar_payload("esp", 100, 81, 36.6)
+    req = _RequestsFalso(OSError(16), OSError(16),  # ciclo 1: lote falha
+                         _Resposta(corpo=[_resultado(i) for i in range(4)]))  # ciclo 2: ok
+    escopo, _ = _carregar(req, fila=fila)
+    escopo["enviar_ciclo"](ATUAL)
+    assert escopo["enviar_ciclo"](segunda)[0] == "aceita"
+    assert req.chamadas[-1]["json"]["leituras"] == antigos + [ATUAL, segunda]
+    assert len(fila) == 0
 
 
-def test_fila_vazia_nao_chama_o_backend():
-    req = _RequestsFalso()
-    escopo, _ = _carregar(req)
-    assert escopo["sincronizar_fila"]() is True
-    assert req.chamadas == []
-
-
-def test_main_loop_usa_destino_resposta_para_descartar():
-    """O loop principal não é executável em CPython: confere que ele decide via logica."""
+def test_main_loop_faz_uma_requisicao_por_ciclo():
+    """O loop principal não é executável em CPython: confere a estrutura no código."""
     fonte = CAMINHO_MAIN.read_text(encoding="utf-8")
-    inicio = fonte.index("def main():")
-    loop = fonte[inicio:]
-    assert 'status_http, resultado = post_json("/api/sensores", payload)' in loop
-    assert "logica.destino_resposta(status_http, resultado)" in loop
-    assert '[DESCARTADO] leitura recusada pelo backend (status %d)' in loop
-    assert "if not backend_ok and not descartada:" in loop  # descartada não vai para a fila
+    loop = fonte[fonte.index("def main():"):]
+    assert "post_json(" not in loop  # toda requisição passa por enviar_ciclo
+    assert loop.count("enviar_ciclo(payload)") == 1
+    assert "sincronizar_fila" not in fonte
