@@ -6,6 +6,7 @@ reconectar. Feedback: LED verde (WiFi/backend OK), LED vermelho (alerta), OLED S
 
 A lógica testável fica em logica.py; aqui só o que depende do hardware.
 """
+import gc
 import time
 
 import dht
@@ -33,6 +34,7 @@ WIFI_SENHA = ""
 INTERVALO_LEITURA_MS = 5000
 TIMEOUT_HTTP_S = 10  # o Render free pode levar ~50 s para acordar; a leitura vai para a fila
 TENTATIVAS_HTTP = 2  # 1 tentativa + 1 repetição em caso de OSError
+PAUSA_RETRY_MS = 1000  # espera antes de repetir: dá tempo do TLS anterior fechar
 SIMULAR_OFFLINE_30S = True  # reproduz a alternância online/offline da F3 na demonstração
 BPM_ALEATORIO = False  # só use se o potenciômetro continuar travado no máximo do ADC
 
@@ -129,6 +131,7 @@ def post_json(rota, corpo):
         headers["X-Device-Key"] = DEVICE_KEY
     for tentativa in range(1, TENTATIVAS_HTTP + 1):
         resposta = None
+        gc.collect()  # o handshake TLS precisa de um bloco grande de RAM livre
         try:
             resposta = _post(BACKEND_URL + rota, corpo, headers)
             status_http = resposta.status_code
@@ -139,6 +142,8 @@ def post_json(rota, corpo):
         except OSError as exc:
             print("[HTTP] Falha de rede em", rota,
                   "(tentativa %d/%d) ->" % (tentativa, TENTATIVAS_HTTP), repr(exc))
+            if tentativa < TENTATIVAS_HTTP:
+                time.sleep_ms(PAUSA_RETRY_MS)
         except Exception as exc:
             print("[HTTP] Falha em", rota, "->", repr(exc))
             return None, None

@@ -51,7 +51,20 @@ class _RequestsFalso:
         return item
 
 
-def _carregar(requests_falso, device_key="", fila=None):
+class _Relogio:
+    """Substitui gc e time do MicroPython; registra a ordem das chamadas."""
+
+    def __init__(self, eventos):
+        self.eventos = eventos
+
+    def collect(self):
+        self.eventos.append("gc")
+
+    def sleep_ms(self, ms):
+        self.eventos.append(("sleep", ms))
+
+
+def _carregar(requests_falso, device_key="", fila=None, eventos=None):
     arvore = ast.parse(CAMINHO_MAIN.read_text(encoding="utf-8"))
     nos = [n for n in arvore.body if isinstance(n, ast.FunctionDef) and n.name in FUNCOES]
     assert {n.name for n in nos} == FUNCOES
@@ -59,10 +72,18 @@ def _carregar(requests_falso, device_key="", fila=None):
         n.targets[0].id: ast.literal_eval(n.value)
         for n in arvore.body
         if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)
-        and n.targets[0].id in {"TIMEOUT_HTTP_S", "TENTATIVAS_HTTP"}
+        and n.targets[0].id in {"TIMEOUT_HTTP_S", "TENTATIVAS_HTTP", "PAUSA_RETRY_MS"}
     }
+    relogio = _Relogio(eventos if eventos is not None else [])
+    if eventos is not None:  # registra cada POST na mesma linha do tempo
+        original = requests_falso.post
+
+        def post(*args, **kwargs):
+            eventos.append("post")
+            return original(*args, **kwargs)
+        requests_falso.post = post
     escopo = {
-        **constantes, "requests": requests_falso, "logica": logica,
+        **constantes, "requests": requests_falso, "logica": logica, "gc": relogio, "time": relogio,
         "fila": fila if fila is not None else logica.FilaOffline(),
         "BACKEND_URL": "https://backend.teste", "DEVICE_KEY": device_key,
     }
@@ -81,7 +102,28 @@ def _fila_com(n):
 
 def test_constantes():
     _, constantes = _carregar(_RequestsFalso())
-    assert constantes == {"TIMEOUT_HTTP_S": 10, "TENTATIVAS_HTTP": 2}
+    assert constantes == {"TIMEOUT_HTTP_S": 10, "TENTATIVAS_HTTP": 2, "PAUSA_RETRY_MS": 1000}
+
+
+def test_gc_antes_de_cada_tentativa_e_pausa_so_entre_tentativas():
+    eventos = []
+    escopo, _ = _carregar(_RequestsFalso(OSError(16), _Resposta()), eventos=eventos)
+    assert escopo["post_json"]("/api/sensores", {}) == (200, {"ok": True})
+    assert eventos == ["gc", "post", ("sleep", 1000), "gc", "post"]
+
+
+def test_sem_pausa_depois_da_ultima_tentativa():
+    eventos = []
+    escopo, _ = _carregar(_RequestsFalso(OSError(16), OSError(16)), eventos=eventos)
+    assert escopo["post_json"]("/api/sensores", {}) == (None, None)
+    assert eventos == ["gc", "post", ("sleep", 1000), "gc", "post"]  # nada depois do último
+
+
+def test_sucesso_sem_pausa():
+    eventos = []
+    escopo, _ = _carregar(_RequestsFalso(_Resposta()), eventos=eventos)
+    escopo["post_json"]("/api/sensores", {})
+    assert eventos == ["gc", "post"]
 
 
 def test_sucesso_na_primeira_tentativa():
