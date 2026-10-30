@@ -123,8 +123,10 @@ def post_json(rota, corpo):
     """POST no backend. Retorna (status_http, dados).
 
     status_http é None quando não houve resposta (rede/SSL); dados é o JSON só em 200.
-    OSError (rede/SSL instável, comum no Wokwi) ganha mais uma tentativa; status != 200
-    ou resposta inválida não repetem.
+    Só a fase de conexão/envio (_post) é repetida, para OSError (rede/SSL) e ValueError
+    (BadStatusLine do urequests quando o TLS cai no meio da resposta). Status != 200 e
+    falha ao ler o corpo depois de um 200 não repetem: o backend já gravou, e repetir
+    duplicaria o registro.
     """
     headers = {"Content-Type": "application/json"}
     if DEVICE_KEY:
@@ -134,22 +136,26 @@ def post_json(rota, corpo):
         gc.collect()  # o handshake TLS precisa de um bloco grande de RAM livre
         try:
             resposta = _post(BACKEND_URL + rota, corpo, headers)
+        except (OSError, ValueError) as exc:  # ValueError = BadStatusLine do urequests
+            print("[HTTP] Falha de rede em", rota,
+                  "(tentativa %d/%d) ->" % (tentativa, TENTATIVAS_HTTP), repr(exc))
+            if tentativa < TENTATIVAS_HTTP:
+                time.sleep_ms(PAUSA_RETRY_MS)
+            continue
+        except Exception as exc:
+            print("[HTTP] Falha em", rota, "->", repr(exc))
+            return None, None
+        try:
             status_http = resposta.status_code
             if status_http != 200:
                 print("[HTTP]", rota, "status", status_http, resposta.text[:120])
                 return status_http, None
             return status_http, resposta.json()
-        except OSError as exc:
-            print("[HTTP] Falha de rede em", rota,
-                  "(tentativa %d/%d) ->" % (tentativa, TENTATIVAS_HTTP), repr(exc))
-            if tentativa < TENTATIVAS_HTTP:
-                time.sleep_ms(PAUSA_RETRY_MS)
         except Exception as exc:
-            print("[HTTP] Falha em", rota, "->", repr(exc))
+            print("[HTTP] Resposta inválida em", rota, "->", repr(exc))
             return None, None
         finally:
-            if resposta is not None:
-                resposta.close()
+            resposta.close()
     return None, None
 
 
