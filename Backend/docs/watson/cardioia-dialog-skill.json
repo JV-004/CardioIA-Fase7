@@ -656,6 +656,42 @@
     },
     {
       "type": "standard",
+      "title": "#General_Greetings",
+      "output": {
+        "generic": [
+          {
+            "values": [
+              { "text": "Olá! Eu sou o assistente virtual do CardioIA. Posso ajudar com orientações gerais sobre sintomas, medicação e contato com a equipe, mas não faço diagnósticos. Como posso ajudar?" }
+            ],
+            "response_type": "text",
+            "selection_policy": "sequential"
+          }
+        ]
+      },
+      "conditions": "#General_Greetings",
+      "dialog_node": "node_saudacao_cardioia",
+      "previous_sibling": "node_1_1787878524396"
+    },
+    {
+      "type": "standard",
+      "title": "#General_Ending",
+      "output": {
+        "generic": [
+          {
+            "values": [
+              { "text": "Até logo! Lembre-se de que este assistente não substitui um médico. Se os sintomas piorarem, procure atendimento." }
+            ],
+            "response_type": "text",
+            "selection_policy": "sequential"
+          }
+        ]
+      },
+      "conditions": "#General_Ending",
+      "dialog_node": "node_despedida_cardioia",
+      "previous_sibling": "node_saudacao_cardioia"
+    },
+    {
+      "type": "standard",
       "title": "Em outros casos",
       "output": {
         "generic": [
@@ -670,7 +706,7 @@
       },
       "conditions": "anything_else",
       "dialog_node": "Em outros casos",
-      "previous_sibling": "node_1_1787878524396",
+      "previous_sibling": "node_despedida_cardioia",
       "disambiguation_opt_out": true
     },
     {
