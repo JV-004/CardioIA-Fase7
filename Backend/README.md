@@ -30,8 +30,10 @@ Backend/
   modelo/              artefatos da F6 copiados sem alteração (predict.py, features.json, .joblib)
   scripts/
     descobrir_environment_id.py   lista os ambientes (draft/live) do Watson
+    validar_watson_json.py        valida o Dialog skill (cadeia de nós, textos)
   docs/
     CONTRATO_API.md    contrato das rotas para o front-end e o firmware
+    watson/cardioia-dialog-skill.json   Dialog skill do Watson (F5)
   tests/               pytest
   requirements.txt  .env.example  render.yaml  pytest.ini
 ```
@@ -88,6 +90,19 @@ O script lista nome, tipo (`draft`/`live`) e ID de cada ambiente, e nunca imprim
 ### Sessões do chat
 
 O `session_id` devolvido por `/api/chat` deve ser reenviado nas mensagens seguintes. Se ele não estiver no formato UUID, o backend o ignora e cria uma sessão nova. Se a sessão tiver expirado (404 da IBM), ela é recriada automaticamente. Nos dois casos, o novo `session_id` vem na resposta.
+
+## Watson
+
+O Dialog skill do assistente (F5) está versionado em [`docs/watson/cardioia-dialog-skill.json`](docs/watson/cardioia-dialog-skill.json): 23 intents, 5 entities e 10 nós de diálogo. Inclui saudação (`#General_Greetings`) e despedida (`#General_Ending`) antes do nó "Em outros casos", que é sempre o último. O arquivo não contém credenciais.
+
+Para validar depois de editar:
+
+```bash
+cd Backend
+python -I scripts/validar_watson_json.py
+```
+
+Para subir no Watson Assistant: abra o assistant no IBM Cloud, no ambiente **Draft** (o mesmo do `WATSON_ENVIRONMENT_ID`), vá em **Dialog → Options → Upload/Download** e faça **Upload** do JSON. O upload **substitui** intents, entities e nós do skill atual; baixe o skill existente antes se quiser guardar uma cópia.
 
 ## Regras de negócio
 
